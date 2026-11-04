@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	otgrpc "github.com/opentracing-contrib/go-grpc"
@@ -15,10 +16,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
 	"github.com/rendau/zorko/internal/config"
+	sessionModel "github.com/rendau/zorko/internal/domain/session/model"
+	domainSessionServiceP "github.com/rendau/zorko/internal/domain/session/service"
 	"github.com/rendau/zorko/internal/errs"
 	"github.com/rendau/zorko/internal/infra/metrics"
 	"github.com/rendau/zorko/pkg/proto/common"
@@ -29,11 +33,14 @@ type GrpcServer struct {
 	server *grpc.Server
 }
 
-func NewGrpcServer(name string, register func(*grpc.Server)) *GrpcServer {
-	interceptors := make([]grpc.UnaryServerInterceptor, 0, 5)
+func NewGrpcServer(name string, sessionSvc *domainSessionServiceP.Service, register func(*grpc.Server)) *GrpcServer {
+	interceptors := make([]grpc.UnaryServerInterceptor, 0, 6)
 
 	// ctx without cancel
 	interceptors = append(interceptors, GrpcInterceptorCtxWithoutCancel())
+
+	// session (JWT)
+	interceptors = append(interceptors, GrpcInterceptorSession(sessionSvc))
 
 	// recovery
 	interceptors = append(interceptors, GrpcInterceptorRecovery())
@@ -196,7 +203,8 @@ func GrpcInterceptorError() grpc.UnaryServerInterceptor {
 			slog.String("method", info.FullMethod),
 		)
 
-		st := status.New(codes.InvalidArgument, errStr)
+		grpcCode := grpcCodeFor(ei.Code)
+		st := status.New(grpcCode, errStr)
 		st, err = st.WithDetails(ei)
 		if err != nil {
 			slog.Error(
@@ -204,9 +212,56 @@ func GrpcInterceptorError() grpc.UnaryServerInterceptor {
 				slog.String("error", errStr),
 				slog.String("method", info.FullMethod),
 			)
-			st = status.New(codes.InvalidArgument, errStr)
+			st = status.New(grpcCode, errStr)
 		}
 
 		return h, st.Err()
 	}
+}
+
+// grpcCodeFor — «нужен вход» и «нет прав» отличаются от прочих отказов кодом, чтобы HTTP-шлюз
+// отдал 401/403: по 401 интерфейс обновляет токен
+func grpcCodeFor(code string) codes.Code {
+	switch errs.Err(code) {
+	case errs.NotAuthorized:
+		return codes.Unauthenticated
+	case errs.NoPermission:
+		return codes.PermissionDenied
+	}
+	return codes.InvalidArgument
+}
+
+// GrpcInterceptorSession кладёт в контекст сессию из `authorization: Bearer <jwt>` (ADR-005);
+// без токена или с негодным — пустая сессия, права решает usecase
+func GrpcInterceptorSession(sessionSvc *domainSessionServiceP.Service) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		var session *sessionModel.Session
+
+		if token := grpcExtractBearerToken(ctx); token != "" {
+			if parsed, parseErr := sessionSvc.FromToken(token); parseErr == nil && parsed.IsAuthorized() {
+				session = parsed
+			}
+		}
+
+		return handler(sessionSvc.WithContext(ctx, session), req)
+	}
+}
+
+func grpcExtractBearerToken(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	values := md.Get("authorization")
+	if len(values) == 0 {
+		return ""
+	}
+	parts := strings.Fields(values[0])
+	switch {
+	case len(parts) == 1:
+		return parts[0]
+	case len(parts) == 2 && strings.EqualFold(parts[0], "bearer"):
+		return parts[1]
+	}
+	return ""
 }

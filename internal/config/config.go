@@ -18,6 +18,9 @@ var Conf = struct {
 	HttpPort string `env:"HTTP_PORT" envDefault:"80"`
 	HttpCors bool   `env:"HTTP_CORS" envDefault:"false"`
 
+	// подпись токенов входа (HS256, ADR-005)
+	JwtSecret string `env:"JWT_SECRET"`
+
 	PgDsn string `env:"PG_DSN"`
 	ChDsn string `env:"CH_DSN"`
 

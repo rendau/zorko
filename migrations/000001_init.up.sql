@@ -1,3 +1,14 @@
+create table usr (
+    id          bigserial primary key,
+    created_at  timestamptz not null default now(),
+    modified_at timestamptz not null default now(),
+    active      boolean     not null default true,
+    is_admin    boolean     not null default false,
+    name        text        not null default '',
+    username    text        not null unique,
+    password    text        not null default ''
+);
+
 create table org (
     id          bigserial primary key,
     created_at  timestamptz not null default now(),

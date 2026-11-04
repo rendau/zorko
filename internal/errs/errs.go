@@ -28,6 +28,11 @@ const (
 	OrgNotFound     = Err("org_not_found")
 	ProjectNotFound = Err("project_not_found")
 
+	UsrUsernameExists = Err("usr_username_exists")
+	LoginRateLimited  = Err("login_rate_limited")
+	UsrSelfChange     = Err("usr_self_change")
+	InvalidQuery      = Err("invalid_query")
+
 	IngestKeyInvalid   = Err("ingest_key_invalid")
 	IngestOriginDenied = Err("ingest_origin_denied")
 )

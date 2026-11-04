@@ -31,11 +31,15 @@ import (
 	domainProjectServiceP "github.com/rendau/zorko/internal/domain/project/service"
 	domainProjectKeyRepoDbP "github.com/rendau/zorko/internal/domain/project_key/repo/db"
 	domainProjectKeyServiceP "github.com/rendau/zorko/internal/domain/project_key/service"
+	domainSessionServiceP "github.com/rendau/zorko/internal/domain/session/service"
+	domainUsrRepoDbP "github.com/rendau/zorko/internal/domain/usr/repo/db"
+	domainUsrServiceP "github.com/rendau/zorko/internal/domain/usr/service"
 	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
 	handlerIngestP "github.com/rendau/zorko/internal/handler/ingest"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
 	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
 	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
+	serviceLoginlimitServiceP "github.com/rendau/zorko/internal/service/loginlimit/service"
 	serviceNormalizeServiceP "github.com/rendau/zorko/internal/service/normalize/service"
 	serviceProcessorServiceP "github.com/rendau/zorko/internal/service/processor/service"
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
@@ -44,6 +48,7 @@ import (
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
+	usecaseUsrP "github.com/rendau/zorko/internal/usecase/usr"
 	"github.com/rendau/zorko/pkg/proto/zorko_v1"
 )
 
@@ -105,22 +110,34 @@ func (a *App) Init() {
 		slog.Info("CH-migrations have been successfully applied")
 	}
 
+	// session
+	if config.Conf.JwtSecret == "" {
+		errCheck(errors.New("JWT_SECRET is empty"), "session init")
+	}
+	sessionService := domainSessionServiceP.New(config.Conf.JwtSecret)
+
+	// usr
+	usrRepo := domainUsrRepoDbP.New(a.pgpool)
+	usrService := domainUsrServiceP.New(usrRepo)
+	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute))
+	usrHandler := handlerGrpcP.NewUsr(usrUsecase)
+
 	// org
 	orgRepo := domainOrgRepoDbP.New(a.pgpool)
 	orgService := domainOrgServiceP.New(orgRepo)
-	orgUsecase := usecaseOrgP.New(orgService)
+	orgUsecase := usecaseOrgP.New(orgService, sessionService)
 	orgHandler := handlerGrpcP.NewOrg(orgUsecase)
 
 	// project
 	projectRepo := domainProjectRepoDbP.New(a.pgpool)
 	projectService := domainProjectServiceP.New(projectRepo)
-	projectUsecase := usecaseProjectP.New(projectService)
+	projectUsecase := usecaseProjectP.New(projectService, sessionService)
 	projectHandler := handlerGrpcP.NewProject(projectUsecase)
 
 	// project_key
 	projectKeyRepo := domainProjectKeyRepoDbP.New(a.pgpool)
 	projectKeyService := domainProjectKeyServiceP.New(projectKeyRepo)
-	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService)
+	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService, sessionService)
 	projectKeyHandler := handlerGrpcP.NewProjectKey(projectKeyUsecase)
 
 	// queue
@@ -184,7 +201,8 @@ func (a *App) Init() {
 
 	// grpc server
 	{
-		a.grpcServer = NewGrpcServer("main", func(server *grpc.Server) {
+		a.grpcServer = NewGrpcServer("main", sessionService, func(server *grpc.Server) {
+			zorko_v1.RegisterUsrServiceServer(server, usrHandler)
 			zorko_v1.RegisterOrgServiceServer(server, orgHandler)
 			zorko_v1.RegisterProjectServiceServer(server, projectHandler)
 			zorko_v1.RegisterProjectKeyServiceServer(server, projectKeyHandler)
@@ -204,6 +222,7 @@ func (a *App) Init() {
 
 			// register grpc handlers
 			handlers := []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
+				zorko_v1.RegisterUsrServiceHandler,
 				zorko_v1.RegisterOrgServiceHandler,
 				zorko_v1.RegisterProjectServiceHandler,
 				zorko_v1.RegisterProjectKeyServiceHandler,

@@ -10,11 +10,12 @@ import (
 )
 
 type Usecase struct {
-	svc ServiceI
+	svc        ServiceI
+	sessionSvc SessionServiceI
 }
 
-func New(svc ServiceI) *Usecase {
-	return &Usecase{svc: svc}
+func New(svc ServiceI, sessionSvc SessionServiceI) *Usecase {
+	return &Usecase{svc: svc, sessionSvc: sessionSvc}
 }
 
 func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
@@ -22,6 +23,9 @@ func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
 }
 
 func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main, int64, error) {
+	if !u.sessionSvc.CtxIsAuthorized(ctx) {
+		return nil, 0, errs.NotAuthorized
+	}
 	if err := util.RequirePageSize(pars.ListParams, 0); err != nil {
 		return nil, 0, err
 	}
@@ -33,6 +37,9 @@ func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main,
 }
 
 func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
+	if !u.sessionSvc.CtxIsAuthorized(ctx) {
+		return nil, errs.NotAuthorized
+	}
 	result, _, err := u.svc.Get(ctx, id, true)
 	if err != nil {
 		return nil, fmt.Errorf("svc.Get: %w", err)
@@ -41,7 +48,9 @@ func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
 }
 
 func (u *Usecase) Create(ctx context.Context, obj *model.Edit) (int64, error) {
-	// TODO: check auth/permissions (шаг 5)
+	if !u.sessionSvc.CtxIsAdmin(ctx) {
+		return 0, errs.NoPermission
+	}
 	if err := u.validateEdit(obj, true); err != nil {
 		return 0, err
 	}
@@ -56,7 +65,9 @@ func (u *Usecase) Update(ctx context.Context, id int64, obj *model.Edit) error {
 	if id == 0 {
 		return errs.IdRequired
 	}
-	// TODO: check auth/permissions (шаг 5)
+	if !u.sessionSvc.CtxIsAdmin(ctx) {
+		return errs.NoPermission
+	}
 	if err := u.validateEdit(obj, false); err != nil {
 		return err
 	}
@@ -70,7 +81,9 @@ func (u *Usecase) Delete(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errs.IdRequired
 	}
-	// TODO: check auth/permissions (шаг 5)
+	if !u.sessionSvc.CtxIsAdmin(ctx) {
+		return errs.NoPermission
+	}
 	if err := u.svc.Delete(ctx, id); err != nil {
 		return fmt.Errorf("svc.Delete: %w", err)
 	}
