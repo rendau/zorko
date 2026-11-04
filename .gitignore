@@ -1,0 +1,23 @@
+*.log
+*.tar
+*.tar.gz
+*.tar.bz2
+.idea
+go.work
+go.work.sum
+release/*
+build/
+.env
+conf.yml
+.migrate_scripts
+/svc
+cover.out
+cover.html
+.vscode
+*.swp
+/*.custom
+.DS_Store
+.gocache
+
+# локальный тулчейн proto (make proto-tools)
+/bin/
