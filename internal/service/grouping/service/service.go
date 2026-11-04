@@ -267,6 +267,10 @@ func culprit(ev *eventModel.Event) string {
 	}
 
 	for i := len(ev.Exceptions) - 1; i >= 0; i-- {
+		// у synthetic-исключения стек искусственный: сверху кадры самого SDK, а не место ошибки
+		if ev.Exceptions[i].Mechanism.Synthetic {
+			continue
+		}
 		frames := ev.Exceptions[i].Frames
 		for j := len(frames) - 1; j >= 0; j-- {
 			f := frames[j]

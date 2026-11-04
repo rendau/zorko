@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/mileusna/useragent"
 	"github.com/samber/lo"
 
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
@@ -89,8 +90,14 @@ func (s *Service) Normalize(raw *eventModel.RawEvent) (*eventModel.Event, error)
 			IpAddress: lo.Ternary(ipAuto || rep.User.IpAddress != "", rep.User.IpAddress, ""),
 		}
 	}
+	userAgent := ""
 	if rep.Request != nil {
 		ev.RequestUrl = rep.Request.Url
+		for k, v := range rep.Request.Headers {
+			if strings.EqualFold(k, "User-Agent") {
+				userAgent = v
+			}
+		}
 	}
 	if c := rep.Contexts.Browser; c != nil {
 		ev.BrowserName = c.Name
@@ -105,6 +112,10 @@ func (s *Service) Normalize(raw *eventModel.RawEvent) (*eventModel.Event, error)
 	}
 	if c := rep.Contexts.Device; c != nil {
 		ev.Device = lo.CoalesceOrEmpty(c.Model, c.Family, c.Brand)
+	}
+	// браузерные SDK не присылают browser/os: их, как и Sentry, вычисляем из User-Agent
+	if userAgent != "" && (ev.Browser == "" || ev.Os == "") {
+		applyUserAgent(ev, userAgent)
 	}
 	if rep.Sdk != nil {
 		ev.SdkName = rep.Sdk.Name
@@ -193,6 +204,27 @@ func buildTags(ev *eventModel.Event, sdkTags localModel.Tags) map[string]string 
 	}
 
 	return tags
+}
+
+func applyUserAgent(ev *eventModel.Event, userAgent string) {
+	ua := useragent.Parse(userAgent)
+	if ev.Browser == "" && ua.Name != "" {
+		ev.BrowserName = ua.Name
+		ev.Browser = joinNonEmpty(ua.Name, majorMinor(ua.Version))
+	}
+	if ev.Os == "" && ua.OS != "" {
+		ev.OsName = ua.OS
+		ev.Os = joinNonEmpty(ua.OS, ua.OSVersion)
+	}
+	if ev.Device == "" {
+		ev.Device = ua.Device
+	}
+}
+
+// majorMinor — «130.0.6723.91» → «130.0»: полная сборка браузера дробит распределение по версиям
+func majorMinor(v string) string {
+	parts := strings.SplitN(v, ".", 3)
+	return strings.Join(parts[:min(len(parts), 2)], ".")
 }
 
 func clampTimestamp(ts, receivedAt time.Time) time.Time {

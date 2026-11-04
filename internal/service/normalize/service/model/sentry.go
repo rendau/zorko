@@ -163,7 +163,8 @@ type UserRep struct {
 }
 
 type RequestRep struct {
-	Url string `json:"url"`
+	Url     string `json:"url"`
+	Headers Tags   `json:"headers"` // объект или список пар — как теги
 }
 
 type ContextsRep struct {

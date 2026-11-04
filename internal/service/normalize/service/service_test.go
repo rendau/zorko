@@ -193,3 +193,19 @@ func jsonNum(f float64) string {
 	b, _ := json.Marshal(f)
 	return string(b)
 }
+
+func TestUserAgent(t *testing.T) {
+	ev := normalize(t, `{"request":{"url":"https://shop/cart","headers":{"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.91 Safari/537.36"}}}`)
+	assert.Equal(t, "Chrome 130.0", ev.Browser)
+	assert.Equal(t, "Chrome", ev.BrowserName)
+	assert.Equal(t, "macOS", ev.OsName)
+	assert.Equal(t, "Chrome 130.0", ev.Tags["browser"])
+
+	ev = normalize(t, `{"request":{"headers":[["user-agent","Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"]]}}`)
+	assert.Equal(t, "Safari", ev.BrowserName, "заголовки списком пар")
+	assert.Equal(t, "iOS", ev.OsName)
+	assert.Equal(t, "iPhone", ev.Device)
+
+	ev = normalize(t, `{"contexts":{"browser":{"name":"Firefox","version":"132"}},"request":{"headers":{"User-Agent":"Chrome/130"}}}`)
+	assert.Equal(t, "Firefox 132", ev.Browser, "контекст SDK важнее User-Agent")
+}

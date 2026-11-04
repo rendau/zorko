@@ -20,6 +20,9 @@ type Config struct {
 	// пауза между повторами после сбоя базы: от RetryMin, удваивается до RetryMax
 	RetryMin time.Duration
 	RetryMax time.Duration
+	// StageTimeout — предел одной попытки записи: «тихо» пропавшая база (соединение висит, ошибки нет)
+	// не должна останавливать обработку навсегда
+	StageTimeout time.Duration
 }
 
 type Service struct {
@@ -205,7 +208,9 @@ func buildHit(events []*eventModel.Event) *issueModel.Hit {
 func (s *Service) retry(ctx context.Context, stage string, f func(context.Context) error) error {
 	pause := s.conf.RetryMin
 	for {
-		err := f(context.WithoutCancel(ctx))
+		attemptCtx, attemptCancel := context.WithTimeout(context.WithoutCancel(ctx), s.conf.StageTimeout)
+		err := f(attemptCtx)
+		attemptCancel()
 		if err == nil {
 			return nil
 		}

@@ -75,11 +75,16 @@ type eventFake struct {
 	calls     int
 	failTimes int
 	alwaysErr bool
+	hang      bool
 	all, full []*eventModel.Event
 }
 
-func (f *eventFake) Store(_ context.Context, all, full []*eventModel.Event) error {
+func (f *eventFake) Store(ctx context.Context, all, full []*eventModel.Event) error {
 	f.calls++
+	if f.hang && f.calls == 1 {
+		<-ctx.Done() // «тихо» пропавшая база: ни ответа, ни ошибки
+		return ctx.Err()
+	}
 	if f.alwaysErr || f.calls <= f.failTimes {
 		return errors.New("clickhouse down")
 	}
@@ -95,7 +100,7 @@ const typeErrorPayload = `{"exception":{"values":[{"type":"TypeError","value":"x
 
 func run(t *testing.T, q *queueFake, issues *issueFake, events *eventFake) {
 	t.Helper()
-	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond},
+	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
 		q, normalizeService.New(), groupingService.New(), issues, events)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -164,7 +169,7 @@ func TestShutdownDuringOutageAbandonsBatch(t *testing.T) {
 	issues := &issueFake{allowed: 100}
 	events := &eventFake{alwaysErr: true}
 
-	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond},
+	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
 		q, normalizeService.New(), groupingService.New(), issues, events)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -182,4 +187,16 @@ func TestShutdownDuringOutageAbandonsBatch(t *testing.T) {
 
 	assert.Zero(t, q.commits, "брошенная пачка не подтверждается — её получит другая копия")
 	assert.Greater(t, events.calls, 1)
+}
+
+func TestHangingDatabaseIsRetried(t *testing.T) {
+	q := &queueFake{batches: [][]*queueModel.Event{{ev(1, typeErrorPayload)}}}
+	issues := &issueFake{allowed: 100}
+	events := &eventFake{hang: true}
+
+	run(t, q, issues, events)
+
+	assert.Equal(t, 2, events.calls, "зависшая попытка прервана по пределу времени и повторена")
+	assert.Len(t, events.all, 1)
+	assert.Equal(t, 1, q.commits)
 }

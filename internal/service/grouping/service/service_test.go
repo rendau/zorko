@@ -155,6 +155,7 @@ func TestNodeSdkSyntheticMessage(t *testing.T) {
 	g := group(ev)
 	assert.Equal(t, "Order 81723 not found", g.Title)
 	assert.Empty(t, g.Type, "тип synthetic-исключения не настоящий")
+	assert.Empty(t, g.Culprit, "кадры synthetic-стека — это SDK, не место ошибки")
 
 	ev2 := *ev
 	ev2.Message, ev2.MessageTemplate = "Order 90011 not found", "Order 90011 not found"

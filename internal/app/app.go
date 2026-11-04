@@ -178,6 +178,7 @@ func (a *App) Init() {
 			StorePerMinute: int64(config.Conf.IssueEventStorePerMinute),
 			RetryMin:       time.Second,
 			RetryMax:       30 * time.Second,
+			StageTimeout:   30 * time.Second,
 		}, a.queue, serviceNormalizeServiceP.New(), serviceGroupingServiceP.New(), issueService, eventService)
 	}
 
