@@ -2,8 +2,6 @@ package service
 
 import (
 	"bytes"
-	"encoding/base64"
-	"net/url"
 	"strings"
 	"sync"
 	"unicode/utf16"
@@ -12,6 +10,7 @@ import (
 	"github.com/go-sourcemap/sourcemap"
 
 	"github.com/rendau/zorko/internal/service/symbolicate/jsscope"
+	"github.com/rendau/zorko/internal/util"
 )
 
 // mapFile — разобранная карта
@@ -137,28 +136,5 @@ func (f *jsFile) inlineMap() []byte {
 	if i := strings.IndexAny(ref, "\n\r \t*"); i >= 0 {
 		ref = ref[:i]
 	}
-	return decodeDataUrl(ref)
-}
-
-// decodeDataUrl — содержимое data:-адреса (base64 или процентная кодировка)
-func decodeDataUrl(ref string) []byte {
-	meta, data, ok := strings.Cut(strings.TrimPrefix(ref, "data:"), ",")
-	if !ok {
-		return nil
-	}
-	if strings.HasSuffix(meta, ";base64") {
-		b, err := base64.StdEncoding.DecodeString(data)
-		if err != nil {
-			b, err = base64.RawStdEncoding.DecodeString(data)
-		}
-		if err != nil {
-			return nil
-		}
-		return b
-	}
-	s, err := url.PathUnescape(data)
-	if err != nil {
-		return nil
-	}
-	return []byte(s)
+	return util.DecodeDataUrl(ref)
 }

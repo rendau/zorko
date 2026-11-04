@@ -4,6 +4,7 @@ import (
 	"context"
 
 	artifactModel "github.com/rendau/zorko/internal/domain/artifact/model"
+	sitefetchModel "github.com/rendau/zorko/internal/service/sitefetch/model"
 )
 
 type artifactServiceI interface {
@@ -16,15 +17,6 @@ type artifactServiceI interface {
 
 // SiteFetcherI — карты с сайта (ADR-010); nil — не используется
 type SiteFetcherI interface {
-	// Fetch — сжатый JS и его карта для адреса absUrl; nil без ошибки — нечего брать (код причины в Code)
-	Fetch(ctx context.Context, projectId int64, absUrl string) (*SiteResult, error)
-}
-
-// SiteResult — итог похода на сайт: файлы в архиве bundleId или код причины неудачи
-type SiteResult struct {
-	BundleId int64
-	JsBlob   string
-	MapBlob  string
-	MapUrl   string
-	Code     string // пусто — удача
+	// Fetch — nil без ошибки: скачивание в проекте выключено
+	Fetch(ctx context.Context, projectId int64, absUrl string) (*sitefetchModel.Result, error)
 }

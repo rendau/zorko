@@ -3,6 +3,10 @@ package project
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/samber/lo"
 
 	"github.com/rendau/zorko/internal/domain/project/model"
 	"github.com/rendau/zorko/internal/errs"
@@ -22,7 +26,43 @@ func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
 	if forCreate && (obj.OrgId == nil || *obj.OrgId == 0) {
 		return errs.ErrFull{Err: errs.InvalidRequest, Desc: "org_id is required", Fields: map[string]string{"org_id": "required"}}
 	}
-	return util.ValidateSlug(obj.Slug, forCreate)
+	if err := util.ValidateSlug(obj.Slug, forCreate); err != nil {
+		return err
+	}
+	return validateSiteFetch(obj)
+}
+
+var headerNameRe = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
+
+// validateSiteFetch — хосты без схемы и пути (в нижнем регистре), имя заголовка, интервал от минуты до недели
+func validateSiteFetch(obj *model.Edit) error {
+	if obj.SiteFetchHost != nil {
+		hosts := make([]string, 0, len(*obj.SiteFetchHost))
+		for _, h := range *obj.SiteFetchHost {
+			h = strings.ToLower(strings.TrimSpace(h))
+			if h == "" {
+				continue
+			}
+			if !util.IsHostPort(h) {
+				return errs.ErrFull{Err: errs.InvalidRequest, Desc: "site_fetch_host: host expected, got " + h, Fields: map[string]string{"site_fetch_host": "invalid"}}
+			}
+			hosts = append(hosts, h)
+		}
+		obj.SiteFetchHost = new(lo.Uniq(hosts))
+	}
+	if obj.SiteFetchHeaderName != nil {
+		*obj.SiteFetchHeaderName = strings.TrimSpace(*obj.SiteFetchHeaderName)
+		if *obj.SiteFetchHeaderName != "" && !headerNameRe.MatchString(*obj.SiteFetchHeaderName) {
+			return errs.ErrFull{Err: errs.InvalidRequest, Desc: "site_fetch_header_name: letters, digits and dash", Fields: map[string]string{"site_fetch_header_name": "invalid"}}
+		}
+	}
+	if obj.SiteFetchHeaderValue != nil && (len(*obj.SiteFetchHeaderValue) > 512 || strings.ContainsAny(*obj.SiteFetchHeaderValue, "\r\n")) {
+		return errs.ErrFull{Err: errs.InvalidRequest, Desc: "site_fetch_header_value: up to 512 characters, one line", Fields: map[string]string{"site_fetch_header_value": "invalid"}}
+	}
+	if obj.SiteFetchIntervalMin != nil && (*obj.SiteFetchIntervalMin < 1 || *obj.SiteFetchIntervalMin > 7*24*60) {
+		return errs.ErrFull{Err: errs.InvalidRequest, Desc: "site_fetch_interval_min: from 1 to 10080", Fields: map[string]string{"site_fetch_interval_min": "invalid"}}
+	}
+	return nil
 }
 
 func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main, int64, error) {

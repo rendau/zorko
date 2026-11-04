@@ -53,3 +53,10 @@ func OriginAllowed(host string, patterns []string) bool {
 	}
 	return false
 }
+
+var hostPortRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]{1,5})?$`)
+
+// IsHostPort — имя хоста (в нижнем регистре) с необязательным портом, без схемы и пути
+func IsHostPort(v string) bool {
+	return len(v) <= 253 && hostPortRe.MatchString(v)
+}

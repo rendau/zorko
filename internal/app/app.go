@@ -55,6 +55,7 @@ import (
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
 	serviceRatelimitServiceP "github.com/rendau/zorko/internal/service/ratelimit/service"
 	serviceSearchqueryServiceP "github.com/rendau/zorko/internal/service/searchquery/service"
+	serviceSitefetchServiceP "github.com/rendau/zorko/internal/service/sitefetch/service"
 	serviceSymbolicateP "github.com/rendau/zorko/internal/service/symbolicate"
 	serviceSymbolicateServiceP "github.com/rendau/zorko/internal/service/symbolicate/service"
 	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
@@ -251,9 +252,12 @@ func (a *App) Init() {
 		// перевод стека по картам (ADR-008); без S3 — выключен
 		var symbolicator serviceSymbolicateP.Symbolicator
 		if artifactService != nil {
+			siteFetcher := serviceSitefetchServiceP.New(serviceSitefetchServiceP.Config{
+				Concurrency: config.Conf.SiteFetchConcurrency,
+			}, projectService, artifactService)
 			a.symbolicator = serviceSymbolicateServiceP.New(serviceSymbolicateServiceP.Config{
 				CacheBytes: int64(config.Conf.SourcemapCacheMb) << 20,
-			}, artifactService, nil)
+			}, artifactService, siteFetcher)
 			symbolicator = a.symbolicator
 		}
 

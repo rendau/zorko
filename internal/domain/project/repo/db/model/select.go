@@ -14,6 +14,12 @@ type Select struct {
 	Slug       string
 	Name       string
 	Platform   string
+
+	SiteFetchEnabled     bool
+	SiteFetchHost        []string
+	SiteFetchHeaderName  string
+	SiteFetchHeaderValue string
+	SiteFetchIntervalMin int32
 }
 
 func (m *Select) ListColumnMap() map[string]any {
@@ -25,6 +31,12 @@ func (m *Select) ListColumnMap() map[string]any {
 		"slug":        &m.Slug,
 		"name":        &m.Name,
 		"platform":    &m.Platform,
+
+		"site_fetch_enabled":      &m.SiteFetchEnabled,
+		"site_fetch_host":         &m.SiteFetchHost,
+		"site_fetch_header_name":  &m.SiteFetchHeaderName,
+		"site_fetch_header_value": &m.SiteFetchHeaderValue,
+		"site_fetch_interval_min": &m.SiteFetchIntervalMin,
 	}
 }
 
@@ -47,5 +59,11 @@ func EncodeSelect(v *Select, _ int) *domainModel.Main {
 		Slug:       v.Slug,
 		Name:       v.Name,
 		Platform:   v.Platform,
+
+		SiteFetchEnabled:     v.SiteFetchEnabled,
+		SiteFetchHost:        v.SiteFetchHost,
+		SiteFetchHeaderName:  v.SiteFetchHeaderName,
+		SiteFetchHeaderValue: v.SiteFetchHeaderValue,
+		SiteFetchIntervalMin: v.SiteFetchIntervalMin,
 	}
 }

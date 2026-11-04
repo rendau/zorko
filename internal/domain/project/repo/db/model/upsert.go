@@ -16,6 +16,12 @@ type Upsert struct {
 	Slug       *string
 	Name       *string
 	Platform   *string
+
+	SiteFetchEnabled     *bool
+	SiteFetchHost        *[]string
+	SiteFetchHeaderName  *string
+	SiteFetchHeaderValue *string
+	SiteFetchIntervalMin *int32
 }
 
 func (m *Upsert) CreateColumnMap() map[string]any {
@@ -37,6 +43,21 @@ func (m *Upsert) CreateColumnMap() map[string]any {
 	}
 	if m.Platform != nil {
 		result["platform"] = *m.Platform
+	}
+	if m.SiteFetchEnabled != nil {
+		result["site_fetch_enabled"] = *m.SiteFetchEnabled
+	}
+	if m.SiteFetchHost != nil {
+		result["site_fetch_host"] = *m.SiteFetchHost
+	}
+	if m.SiteFetchHeaderName != nil {
+		result["site_fetch_header_name"] = *m.SiteFetchHeaderName
+	}
+	if m.SiteFetchHeaderValue != nil {
+		result["site_fetch_header_value"] = *m.SiteFetchHeaderValue
+	}
+	if m.SiteFetchIntervalMin != nil {
+		result["site_fetch_interval_min"] = *m.SiteFetchIntervalMin
 	}
 	return result
 }
@@ -64,5 +85,11 @@ func DecodeUpsert(v *domainModel.Edit) *Upsert {
 		Slug:       v.Slug,
 		Name:       v.Name,
 		Platform:   v.Platform,
+
+		SiteFetchEnabled:     v.SiteFetchEnabled,
+		SiteFetchHost:        v.SiteFetchHost,
+		SiteFetchHeaderName:  v.SiteFetchHeaderName,
+		SiteFetchHeaderValue: v.SiteFetchHeaderValue,
+		SiteFetchIntervalMin: v.SiteFetchIntervalMin,
 	}
 }

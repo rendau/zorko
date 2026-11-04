@@ -22,6 +22,12 @@ func EncodeProjectMain(v *domainModel.Main, _ int) *proto.ProjectMain {
 		Slug:       v.Slug,
 		Name:       v.Name,
 		Platform:   v.Platform,
+
+		SiteFetchEnabled:        v.SiteFetchEnabled,
+		SiteFetchHost:           v.SiteFetchHost,
+		SiteFetchHeaderName:     v.SiteFetchHeaderName,
+		SiteFetchHeaderValueSet: v.SiteFetchHeaderValue != "",
+		SiteFetchIntervalMin:    v.SiteFetchIntervalMin,
 	}
 }
 
@@ -46,9 +52,22 @@ func DecodeProjectCreateReq(v *proto.ProjectCreateReq) *domainModel.Edit {
 }
 
 func DecodeProjectUpdateReq(v *proto.ProjectUpdateReq) *domainModel.Edit {
-	return &domainModel.Edit{
-		Slug:     v.Slug,
-		Name:     v.Name,
-		Platform: v.Platform,
+	result := &domainModel.Edit{
+		Slug:                 v.Slug,
+		Name:                 v.Name,
+		Platform:             v.Platform,
+		SiteFetchEnabled:     v.SiteFetchEnabled,
+		SiteFetchHeaderName:  v.SiteFetchHeaderName,
+		SiteFetchIntervalMin: v.SiteFetchIntervalMin,
 	}
+	if hosts := v.GetSiteFetchHost(); hosts != nil {
+		result.SiteFetchHost = new(lo.Ternary(hosts.GetValues() == nil, []string{}, hosts.GetValues()))
+	}
+	switch {
+	case v.GetSiteFetchHeaderClear():
+		result.SiteFetchHeaderValue = new("")
+	case v.GetSiteFetchHeaderValue() != "":
+		result.SiteFetchHeaderValue = v.SiteFetchHeaderValue
+	}
+	return result
 }

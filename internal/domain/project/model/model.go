@@ -15,6 +15,13 @@ type Main struct {
 	Slug       string
 	Name       string
 	Platform   string
+
+	// карты с сайта (ADR-010)
+	SiteFetchEnabled     bool
+	SiteFetchHost        []string
+	SiteFetchHeaderName  string
+	SiteFetchHeaderValue string // секрет: наружу (в ответы ручек) не отдаётся
+	SiteFetchIntervalMin int32
 }
 
 // Edit — мутация (partial create/update)
@@ -25,6 +32,12 @@ type Edit struct {
 	Slug       *string
 	Name       *string
 	Platform   *string
+
+	SiteFetchEnabled     *bool
+	SiteFetchHost        *[]string
+	SiteFetchHeaderName  *string
+	SiteFetchHeaderValue *string
+	SiteFetchIntervalMin *int32
 }
 
 // ListReq — параметры выборки

@@ -34,9 +34,18 @@ type ProjectMain struct {
 	Slug       string                 `protobuf:"bytes,5,opt,name=slug,proto3" json:"slug,omitempty"`
 	Name       string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 	// платформа по SDK: javascript, vue, react, flutter, react-native…
-	Platform      string `protobuf:"bytes,7,opt,name=platform,proto3" json:"platform,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Platform string `protobuf:"bytes,7,opt,name=platform,proto3" json:"platform,omitempty"`
+	// карты с сайта (запасной путь, если из CI карты нет)
+	SiteFetchEnabled bool `protobuf:"varint,8,opt,name=site_fetch_enabled,json=siteFetchEnabled,proto3" json:"site_fetch_enabled,omitempty"`
+	// хосты, с которых можно скачивать: admin.mdev.kz; пусто — никуда
+	SiteFetchHost       []string `protobuf:"bytes,9,rep,name=site_fetch_host,json=siteFetchHost,proto3" json:"site_fetch_host,omitempty"`
+	SiteFetchHeaderName string   `protobuf:"bytes,10,opt,name=site_fetch_header_name,json=siteFetchHeaderName,proto3" json:"site_fetch_header_name,omitempty"`
+	// значение секретного заголовка наружу не отдаётся — только «задано»
+	SiteFetchHeaderValueSet bool `protobuf:"varint,11,opt,name=site_fetch_header_value_set,json=siteFetchHeaderValueSet,proto3" json:"site_fetch_header_value_set,omitempty"`
+	// как часто проверять адрес заново, минут
+	SiteFetchIntervalMin int32 `protobuf:"varint,12,opt,name=site_fetch_interval_min,json=siteFetchIntervalMin,proto3" json:"site_fetch_interval_min,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ProjectMain) Reset() {
@@ -118,6 +127,86 @@ func (x *ProjectMain) GetPlatform() string {
 	return ""
 }
 
+func (x *ProjectMain) GetSiteFetchEnabled() bool {
+	if x != nil {
+		return x.SiteFetchEnabled
+	}
+	return false
+}
+
+func (x *ProjectMain) GetSiteFetchHost() []string {
+	if x != nil {
+		return x.SiteFetchHost
+	}
+	return nil
+}
+
+func (x *ProjectMain) GetSiteFetchHeaderName() string {
+	if x != nil {
+		return x.SiteFetchHeaderName
+	}
+	return ""
+}
+
+func (x *ProjectMain) GetSiteFetchHeaderValueSet() bool {
+	if x != nil {
+		return x.SiteFetchHeaderValueSet
+	}
+	return false
+}
+
+func (x *ProjectMain) GetSiteFetchIntervalMin() int32 {
+	if x != nil {
+		return x.SiteFetchIntervalMin
+	}
+	return 0
+}
+
+// ProjectHostList — обёртка списка хостов: не передан — список не меняется
+type ProjectHostList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProjectHostList) Reset() {
+	*x = ProjectHostList{}
+	mi := &file_zorko_v1_project_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProjectHostList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProjectHostList) ProtoMessage() {}
+
+func (x *ProjectHostList) ProtoReflect() protoreflect.Message {
+	mi := &file_zorko_v1_project_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProjectHostList.ProtoReflect.Descriptor instead.
+func (*ProjectHostList) Descriptor() ([]byte, []int) {
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ProjectHostList) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 type ProjectListReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ListParams    *common.ListParamsSt   `protobuf:"bytes,1,opt,name=list_params,json=listParams,proto3" json:"list_params,omitempty"`
@@ -130,7 +219,7 @@ type ProjectListReq struct {
 
 func (x *ProjectListReq) Reset() {
 	*x = ProjectListReq{}
-	mi := &file_zorko_v1_project_proto_msgTypes[1]
+	mi := &file_zorko_v1_project_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -142,7 +231,7 @@ func (x *ProjectListReq) String() string {
 func (*ProjectListReq) ProtoMessage() {}
 
 func (x *ProjectListReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_project_proto_msgTypes[1]
+	mi := &file_zorko_v1_project_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -155,7 +244,7 @@ func (x *ProjectListReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectListReq.ProtoReflect.Descriptor instead.
 func (*ProjectListReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_project_proto_rawDescGZIP(), []int{1}
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ProjectListReq) GetListParams() *common.ListParamsSt {
@@ -196,7 +285,7 @@ type ProjectListRep struct {
 
 func (x *ProjectListRep) Reset() {
 	*x = ProjectListRep{}
-	mi := &file_zorko_v1_project_proto_msgTypes[2]
+	mi := &file_zorko_v1_project_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -208,7 +297,7 @@ func (x *ProjectListRep) String() string {
 func (*ProjectListRep) ProtoMessage() {}
 
 func (x *ProjectListRep) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_project_proto_msgTypes[2]
+	mi := &file_zorko_v1_project_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -221,7 +310,7 @@ func (x *ProjectListRep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectListRep.ProtoReflect.Descriptor instead.
 func (*ProjectListRep) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_project_proto_rawDescGZIP(), []int{2}
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ProjectListRep) GetPaginationInfo() *common.PaginationInfoSt {
@@ -247,7 +336,7 @@ type ProjectGetReq struct {
 
 func (x *ProjectGetReq) Reset() {
 	*x = ProjectGetReq{}
-	mi := &file_zorko_v1_project_proto_msgTypes[3]
+	mi := &file_zorko_v1_project_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -259,7 +348,7 @@ func (x *ProjectGetReq) String() string {
 func (*ProjectGetReq) ProtoMessage() {}
 
 func (x *ProjectGetReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_project_proto_msgTypes[3]
+	mi := &file_zorko_v1_project_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -272,7 +361,7 @@ func (x *ProjectGetReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectGetReq.ProtoReflect.Descriptor instead.
 func (*ProjectGetReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_project_proto_rawDescGZIP(), []int{3}
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ProjectGetReq) GetId() int64 {
@@ -294,7 +383,7 @@ type ProjectCreateReq struct {
 
 func (x *ProjectCreateReq) Reset() {
 	*x = ProjectCreateReq{}
-	mi := &file_zorko_v1_project_proto_msgTypes[4]
+	mi := &file_zorko_v1_project_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -306,7 +395,7 @@ func (x *ProjectCreateReq) String() string {
 func (*ProjectCreateReq) ProtoMessage() {}
 
 func (x *ProjectCreateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_project_proto_msgTypes[4]
+	mi := &file_zorko_v1_project_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -319,7 +408,7 @@ func (x *ProjectCreateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectCreateReq.ProtoReflect.Descriptor instead.
 func (*ProjectCreateReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_project_proto_rawDescGZIP(), []int{4}
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ProjectCreateReq) GetOrgId() int64 {
@@ -359,7 +448,7 @@ type ProjectCreateRep struct {
 
 func (x *ProjectCreateRep) Reset() {
 	*x = ProjectCreateRep{}
-	mi := &file_zorko_v1_project_proto_msgTypes[5]
+	mi := &file_zorko_v1_project_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -371,7 +460,7 @@ func (x *ProjectCreateRep) String() string {
 func (*ProjectCreateRep) ProtoMessage() {}
 
 func (x *ProjectCreateRep) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_project_proto_msgTypes[5]
+	mi := &file_zorko_v1_project_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -384,7 +473,7 @@ func (x *ProjectCreateRep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectCreateRep.ProtoReflect.Descriptor instead.
 func (*ProjectCreateRep) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_project_proto_rawDescGZIP(), []int{5}
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ProjectCreateRep) GetId() int64 {
@@ -395,18 +484,25 @@ func (x *ProjectCreateRep) GetId() int64 {
 }
 
 type ProjectUpdateReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Slug          *string                `protobuf:"bytes,2,opt,name=slug,proto3,oneof" json:"slug,omitempty"`
-	Name          *string                `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
-	Platform      *string                `protobuf:"bytes,4,opt,name=platform,proto3,oneof" json:"platform,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Slug                *string                `protobuf:"bytes,2,opt,name=slug,proto3,oneof" json:"slug,omitempty"`
+	Name                *string                `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
+	Platform            *string                `protobuf:"bytes,4,opt,name=platform,proto3,oneof" json:"platform,omitempty"`
+	SiteFetchEnabled    *bool                  `protobuf:"varint,5,opt,name=site_fetch_enabled,json=siteFetchEnabled,proto3,oneof" json:"site_fetch_enabled,omitempty"`
+	SiteFetchHost       *ProjectHostList       `protobuf:"bytes,6,opt,name=site_fetch_host,json=siteFetchHost,proto3" json:"site_fetch_host,omitempty"`
+	SiteFetchHeaderName *string                `protobuf:"bytes,7,opt,name=site_fetch_header_name,json=siteFetchHeaderName,proto3,oneof" json:"site_fetch_header_name,omitempty"`
+	// пусто или не передано — значение не меняется; стереть — site_fetch_header_clear
+	SiteFetchHeaderValue *string `protobuf:"bytes,8,opt,name=site_fetch_header_value,json=siteFetchHeaderValue,proto3,oneof" json:"site_fetch_header_value,omitempty"`
+	SiteFetchHeaderClear bool    `protobuf:"varint,9,opt,name=site_fetch_header_clear,json=siteFetchHeaderClear,proto3" json:"site_fetch_header_clear,omitempty"`
+	SiteFetchIntervalMin *int32  `protobuf:"varint,10,opt,name=site_fetch_interval_min,json=siteFetchIntervalMin,proto3,oneof" json:"site_fetch_interval_min,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ProjectUpdateReq) Reset() {
 	*x = ProjectUpdateReq{}
-	mi := &file_zorko_v1_project_proto_msgTypes[6]
+	mi := &file_zorko_v1_project_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -418,7 +514,7 @@ func (x *ProjectUpdateReq) String() string {
 func (*ProjectUpdateReq) ProtoMessage() {}
 
 func (x *ProjectUpdateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_project_proto_msgTypes[6]
+	mi := &file_zorko_v1_project_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -431,7 +527,7 @@ func (x *ProjectUpdateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectUpdateReq.ProtoReflect.Descriptor instead.
 func (*ProjectUpdateReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_project_proto_rawDescGZIP(), []int{6}
+	return file_zorko_v1_project_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ProjectUpdateReq) GetId() int64 {
@@ -462,11 +558,53 @@ func (x *ProjectUpdateReq) GetPlatform() string {
 	return ""
 }
 
+func (x *ProjectUpdateReq) GetSiteFetchEnabled() bool {
+	if x != nil && x.SiteFetchEnabled != nil {
+		return *x.SiteFetchEnabled
+	}
+	return false
+}
+
+func (x *ProjectUpdateReq) GetSiteFetchHost() *ProjectHostList {
+	if x != nil {
+		return x.SiteFetchHost
+	}
+	return nil
+}
+
+func (x *ProjectUpdateReq) GetSiteFetchHeaderName() string {
+	if x != nil && x.SiteFetchHeaderName != nil {
+		return *x.SiteFetchHeaderName
+	}
+	return ""
+}
+
+func (x *ProjectUpdateReq) GetSiteFetchHeaderValue() string {
+	if x != nil && x.SiteFetchHeaderValue != nil {
+		return *x.SiteFetchHeaderValue
+	}
+	return ""
+}
+
+func (x *ProjectUpdateReq) GetSiteFetchHeaderClear() bool {
+	if x != nil {
+		return x.SiteFetchHeaderClear
+	}
+	return false
+}
+
+func (x *ProjectUpdateReq) GetSiteFetchIntervalMin() int32 {
+	if x != nil && x.SiteFetchIntervalMin != nil {
+		return *x.SiteFetchIntervalMin
+	}
+	return 0
+}
+
 var File_zorko_v1_project_proto protoreflect.FileDescriptor
 
 const file_zorko_v1_project_proto_rawDesc = "" +
 	"\n" +
-	"\x16zorko_v1/project.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\xf0\x01\n" +
+	"\x16zorko_v1/project.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\xf0\x03\n" +
 	"\vProjectMain\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x129\n" +
 	"\n" +
@@ -476,7 +614,15 @@ const file_zorko_v1_project_proto_rawDesc = "" +
 	"\x06org_id\x18\x04 \x01(\x03R\x05orgId\x12\x12\n" +
 	"\x04slug\x18\x05 \x01(\tR\x04slug\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12\x1a\n" +
-	"\bplatform\x18\a \x01(\tR\bplatform\"\xa2\x01\n" +
+	"\bplatform\x18\a \x01(\tR\bplatform\x12,\n" +
+	"\x12site_fetch_enabled\x18\b \x01(\bR\x10siteFetchEnabled\x12&\n" +
+	"\x0fsite_fetch_host\x18\t \x03(\tR\rsiteFetchHost\x123\n" +
+	"\x16site_fetch_header_name\x18\n" +
+	" \x01(\tR\x13siteFetchHeaderName\x12<\n" +
+	"\x1bsite_fetch_header_value_set\x18\v \x01(\bR\x17siteFetchHeaderValueSet\x125\n" +
+	"\x17site_fetch_interval_min\x18\f \x01(\x05R\x14siteFetchIntervalMin\")\n" +
+	"\x0fProjectHostList\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\"\xa2\x01\n" +
 	"\x0eProjectListReq\x125\n" +
 	"\vlist_params\x18\x01 \x01(\v2\x14.common.ListParamsStR\n" +
 	"listParams\x12\x1a\n" +
@@ -500,15 +646,26 @@ const file_zorko_v1_project_proto_rawDesc = "" +
 	"\x05_nameB\v\n" +
 	"\t_platform\"\"\n" +
 	"\x10ProjectCreateRep\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x94\x01\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xdd\x04\n" +
 	"\x10ProjectUpdateReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
 	"\x04slug\x18\x02 \x01(\tH\x00R\x04slug\x88\x01\x01\x12\x17\n" +
 	"\x04name\x18\x03 \x01(\tH\x01R\x04name\x88\x01\x01\x12\x1f\n" +
-	"\bplatform\x18\x04 \x01(\tH\x02R\bplatform\x88\x01\x01B\a\n" +
+	"\bplatform\x18\x04 \x01(\tH\x02R\bplatform\x88\x01\x01\x121\n" +
+	"\x12site_fetch_enabled\x18\x05 \x01(\bH\x03R\x10siteFetchEnabled\x88\x01\x01\x12A\n" +
+	"\x0fsite_fetch_host\x18\x06 \x01(\v2\x19.zorko_v1.ProjectHostListR\rsiteFetchHost\x128\n" +
+	"\x16site_fetch_header_name\x18\a \x01(\tH\x04R\x13siteFetchHeaderName\x88\x01\x01\x12:\n" +
+	"\x17site_fetch_header_value\x18\b \x01(\tH\x05R\x14siteFetchHeaderValue\x88\x01\x01\x125\n" +
+	"\x17site_fetch_header_clear\x18\t \x01(\bR\x14siteFetchHeaderClear\x12:\n" +
+	"\x17site_fetch_interval_min\x18\n" +
+	" \x01(\x05H\x06R\x14siteFetchIntervalMin\x88\x01\x01B\a\n" +
 	"\x05_slugB\a\n" +
 	"\x05_nameB\v\n" +
-	"\t_platform2\xad\x03\n" +
+	"\t_platformB\x15\n" +
+	"\x13_site_fetch_enabledB\x19\n" +
+	"\x17_site_fetch_header_nameB\x1a\n" +
+	"\x18_site_fetch_header_valueB\x1a\n" +
+	"\x18_site_fetch_interval_min2\xad\x03\n" +
 	"\x0eProjectService\x12L\n" +
 	"\x04List\x12\x18.zorko_v1.ProjectListReq\x1a\x18.zorko_v1.ProjectListRep\"\x10\x82\xd3\xe4\x93\x02\n" +
 	"\x12\b/project\x12L\n" +
@@ -529,41 +686,43 @@ func file_zorko_v1_project_proto_rawDescGZIP() []byte {
 	return file_zorko_v1_project_proto_rawDescData
 }
 
-var file_zorko_v1_project_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_zorko_v1_project_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_zorko_v1_project_proto_goTypes = []any{
 	(*ProjectMain)(nil),             // 0: zorko_v1.ProjectMain
-	(*ProjectListReq)(nil),          // 1: zorko_v1.ProjectListReq
-	(*ProjectListRep)(nil),          // 2: zorko_v1.ProjectListRep
-	(*ProjectGetReq)(nil),           // 3: zorko_v1.ProjectGetReq
-	(*ProjectCreateReq)(nil),        // 4: zorko_v1.ProjectCreateReq
-	(*ProjectCreateRep)(nil),        // 5: zorko_v1.ProjectCreateRep
-	(*ProjectUpdateReq)(nil),        // 6: zorko_v1.ProjectUpdateReq
-	(*timestamppb.Timestamp)(nil),   // 7: google.protobuf.Timestamp
-	(*common.ListParamsSt)(nil),     // 8: common.ListParamsSt
-	(*common.PaginationInfoSt)(nil), // 9: common.PaginationInfoSt
-	(*emptypb.Empty)(nil),           // 10: google.protobuf.Empty
+	(*ProjectHostList)(nil),         // 1: zorko_v1.ProjectHostList
+	(*ProjectListReq)(nil),          // 2: zorko_v1.ProjectListReq
+	(*ProjectListRep)(nil),          // 3: zorko_v1.ProjectListRep
+	(*ProjectGetReq)(nil),           // 4: zorko_v1.ProjectGetReq
+	(*ProjectCreateReq)(nil),        // 5: zorko_v1.ProjectCreateReq
+	(*ProjectCreateRep)(nil),        // 6: zorko_v1.ProjectCreateRep
+	(*ProjectUpdateReq)(nil),        // 7: zorko_v1.ProjectUpdateReq
+	(*timestamppb.Timestamp)(nil),   // 8: google.protobuf.Timestamp
+	(*common.ListParamsSt)(nil),     // 9: common.ListParamsSt
+	(*common.PaginationInfoSt)(nil), // 10: common.PaginationInfoSt
+	(*emptypb.Empty)(nil),           // 11: google.protobuf.Empty
 }
 var file_zorko_v1_project_proto_depIdxs = []int32{
-	7,  // 0: zorko_v1.ProjectMain.created_at:type_name -> google.protobuf.Timestamp
-	7,  // 1: zorko_v1.ProjectMain.modified_at:type_name -> google.protobuf.Timestamp
-	8,  // 2: zorko_v1.ProjectListReq.list_params:type_name -> common.ListParamsSt
-	9,  // 3: zorko_v1.ProjectListRep.pagination_info:type_name -> common.PaginationInfoSt
+	8,  // 0: zorko_v1.ProjectMain.created_at:type_name -> google.protobuf.Timestamp
+	8,  // 1: zorko_v1.ProjectMain.modified_at:type_name -> google.protobuf.Timestamp
+	9,  // 2: zorko_v1.ProjectListReq.list_params:type_name -> common.ListParamsSt
+	10, // 3: zorko_v1.ProjectListRep.pagination_info:type_name -> common.PaginationInfoSt
 	0,  // 4: zorko_v1.ProjectListRep.results:type_name -> zorko_v1.ProjectMain
-	1,  // 5: zorko_v1.ProjectService.List:input_type -> zorko_v1.ProjectListReq
-	3,  // 6: zorko_v1.ProjectService.Get:input_type -> zorko_v1.ProjectGetReq
-	4,  // 7: zorko_v1.ProjectService.Create:input_type -> zorko_v1.ProjectCreateReq
-	6,  // 8: zorko_v1.ProjectService.Update:input_type -> zorko_v1.ProjectUpdateReq
-	3,  // 9: zorko_v1.ProjectService.Delete:input_type -> zorko_v1.ProjectGetReq
-	2,  // 10: zorko_v1.ProjectService.List:output_type -> zorko_v1.ProjectListRep
-	0,  // 11: zorko_v1.ProjectService.Get:output_type -> zorko_v1.ProjectMain
-	5,  // 12: zorko_v1.ProjectService.Create:output_type -> zorko_v1.ProjectCreateRep
-	10, // 13: zorko_v1.ProjectService.Update:output_type -> google.protobuf.Empty
-	10, // 14: zorko_v1.ProjectService.Delete:output_type -> google.protobuf.Empty
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	1,  // 5: zorko_v1.ProjectUpdateReq.site_fetch_host:type_name -> zorko_v1.ProjectHostList
+	2,  // 6: zorko_v1.ProjectService.List:input_type -> zorko_v1.ProjectListReq
+	4,  // 7: zorko_v1.ProjectService.Get:input_type -> zorko_v1.ProjectGetReq
+	5,  // 8: zorko_v1.ProjectService.Create:input_type -> zorko_v1.ProjectCreateReq
+	7,  // 9: zorko_v1.ProjectService.Update:input_type -> zorko_v1.ProjectUpdateReq
+	4,  // 10: zorko_v1.ProjectService.Delete:input_type -> zorko_v1.ProjectGetReq
+	3,  // 11: zorko_v1.ProjectService.List:output_type -> zorko_v1.ProjectListRep
+	0,  // 12: zorko_v1.ProjectService.Get:output_type -> zorko_v1.ProjectMain
+	6,  // 13: zorko_v1.ProjectService.Create:output_type -> zorko_v1.ProjectCreateRep
+	11, // 14: zorko_v1.ProjectService.Update:output_type -> google.protobuf.Empty
+	11, // 15: zorko_v1.ProjectService.Delete:output_type -> google.protobuf.Empty
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_zorko_v1_project_proto_init() }
@@ -571,16 +730,16 @@ func file_zorko_v1_project_proto_init() {
 	if File_zorko_v1_project_proto != nil {
 		return
 	}
-	file_zorko_v1_project_proto_msgTypes[1].OneofWrappers = []any{}
-	file_zorko_v1_project_proto_msgTypes[4].OneofWrappers = []any{}
-	file_zorko_v1_project_proto_msgTypes[6].OneofWrappers = []any{}
+	file_zorko_v1_project_proto_msgTypes[2].OneofWrappers = []any{}
+	file_zorko_v1_project_proto_msgTypes[5].OneofWrappers = []any{}
+	file_zorko_v1_project_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_zorko_v1_project_proto_rawDesc), len(file_zorko_v1_project_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

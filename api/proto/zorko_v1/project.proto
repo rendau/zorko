@@ -54,6 +54,20 @@ message ProjectMain {
   string name = 6;
   // платформа по SDK: javascript, vue, react, flutter, react-native…
   string platform = 7;
+  // карты с сайта (запасной путь, если из CI карты нет)
+  bool site_fetch_enabled = 8;
+  // хосты, с которых можно скачивать: admin.mdev.kz; пусто — никуда
+  repeated string site_fetch_host = 9;
+  string site_fetch_header_name = 10;
+  // значение секретного заголовка наружу не отдаётся — только «задано»
+  bool site_fetch_header_value_set = 11;
+  // как часто проверять адрес заново, минут
+  int32 site_fetch_interval_min = 12;
+}
+
+// ProjectHostList — обёртка списка хостов: не передан — список не меняется
+message ProjectHostList {
+  repeated string values = 1;
 }
 
 // List
@@ -96,4 +110,11 @@ message ProjectUpdateReq {
   optional string slug = 2;
   optional string name = 3;
   optional string platform = 4;
+  optional bool site_fetch_enabled = 5;
+  ProjectHostList site_fetch_host = 6;
+  optional string site_fetch_header_name = 7;
+  // пусто или не передано — значение не меняется; стереть — site_fetch_header_clear
+  optional string site_fetch_header_value = 8;
+  bool site_fetch_header_clear = 9;
+  optional int32 site_fetch_interval_min = 10;
 }

@@ -2100,6 +2100,18 @@
         }
       }
     },
+    "zorko_v1ProjectHostList": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "ProjectHostList — обёртка списка хостов: не передан — список не меняется"
+    },
     "zorko_v1ProjectKeyCreateRep": {
       "type": "object",
       "properties": {
@@ -2265,6 +2277,29 @@
         "platform": {
           "type": "string",
           "title": "платформа по SDK: javascript, vue, react, flutter, react-native…"
+        },
+        "site_fetch_enabled": {
+          "type": "boolean",
+          "title": "карты с сайта (запасной путь, если из CI карты нет)"
+        },
+        "site_fetch_host": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "хосты, с которых можно скачивать: admin.mdev.kz; пусто — никуда"
+        },
+        "site_fetch_header_name": {
+          "type": "string"
+        },
+        "site_fetch_header_value_set": {
+          "type": "boolean",
+          "title": "значение секретного заголовка наружу не отдаётся — только «задано»"
+        },
+        "site_fetch_interval_min": {
+          "type": "integer",
+          "format": "int32",
+          "title": "как часто проверять адрес заново, минут"
         }
       }
     },
@@ -2279,6 +2314,26 @@
         },
         "platform": {
           "type": "string"
+        },
+        "site_fetch_enabled": {
+          "type": "boolean"
+        },
+        "site_fetch_host": {
+          "$ref": "#/definitions/zorko_v1ProjectHostList"
+        },
+        "site_fetch_header_name": {
+          "type": "string"
+        },
+        "site_fetch_header_value": {
+          "type": "string",
+          "title": "пусто или не передано — значение не меняется; стереть — site_fetch_header_clear"
+        },
+        "site_fetch_header_clear": {
+          "type": "boolean"
+        },
+        "site_fetch_interval_min": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },

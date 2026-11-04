@@ -264,3 +264,28 @@ func (s *Service) MarkUsed(ctx context.Context, bundleIds []int64) error {
 	}
 	return nil
 }
+
+// site_fetch
+
+func (s *Service) GetSiteFetch(ctx context.Context, projectId int64, url string) (*model.SiteFetch, bool, error) {
+	m, found, err := s.repoDb.GetSiteFetch(ctx, projectId, url)
+	if err != nil {
+		return nil, false, fmt.Errorf("repoDb.GetSiteFetch: %w", err)
+	}
+	return m, found, nil
+}
+
+func (s *Service) SaveSiteFetch(ctx context.Context, m *model.SiteFetch) error {
+	if err := s.repoDb.SaveSiteFetch(ctx, m); err != nil {
+		return fmt.Errorf("repoDb.SaveSiteFetch: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) ListSiteFetch(ctx context.Context, projectId int64, state string, limit int) ([]*model.SiteFetch, error) {
+	items, err := s.repoDb.ListSiteFetch(ctx, projectId, state, limit)
+	if err != nil {
+		return nil, fmt.Errorf("repoDb.ListSiteFetch: %w", err)
+	}
+	return items, nil
+}

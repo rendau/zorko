@@ -20,6 +20,10 @@ type RepoDbI interface {
 	FilesByReleaseUrls(ctx context.Context, projectId int64, release, dist string, urls []string) ([]*model.File, error)
 	FilesOfBundle(ctx context.Context, bundleId int64, urls []string) ([]*model.File, error)
 	MarkUsed(ctx context.Context, bundleIds []int64) error
+
+	GetSiteFetch(ctx context.Context, projectId int64, url string) (*model.SiteFetch, bool, error)
+	SaveSiteFetch(ctx context.Context, m *model.SiteFetch) error
+	ListSiteFetch(ctx context.Context, projectId int64, state string, limit int) ([]*model.SiteFetch, error)
 }
 
 type RepoBlobI interface {
