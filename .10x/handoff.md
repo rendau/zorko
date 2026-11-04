@@ -1,9 +1,10 @@
 # Handoff
 
-**От:** QA + Security (Phase 5) → **к:** DevOps + SRE (Phase 6) или шагу 2
+**От:** брейншторм `issue-ui` → **к:** пользователю на просмотр, затем CTO/PM
 
-- Шаг 1 построен и проверен: `decisions/sde/error-ingest.md` (что и отступления),
-  `reviews/2026-11-04-qa-report.md`, `reviews/2026-11-04-security-review.md`.
-- Для деплоя нужны: Postgres, ClickHouse, Redpanda; env — `internal/config/config.go` и
-  `.env.example`; приём — отдельный домен на `INGEST_PORT`; админский API наружу не открывать.
-- CI `deploy.yml` выключен (ветка `disabled`), тесты в нём закомментированы.
+- Спека шага 2: `.10x/specs/2026-11-04-issue-ui-design.md`.
+- Образцы: вход — kusec (`internal/domain/session/service/service.go`, `internal/usecase/usr`);
+  раздача статики — kusec/ruto (`internal/app/spa.go`, `apps/admin/scripts/compress.mjs`);
+  раскладка фронта — planora/admin.
+- Нужны ADR: вход (stateless JWT + refresh как в kusec); список проблем через ClickHouse + сортировка
+  в Go; один бандл + предсжатая статика с кэшем.
