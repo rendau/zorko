@@ -4,3 +4,4 @@
 ## Активные
 - [error-ingest](error-ingest.md)
 - [issue-ui](issue-ui.md)
+- [sourcemaps](sourcemaps.md) — шаг 3

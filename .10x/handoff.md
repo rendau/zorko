@@ -1,6 +1,10 @@
 # Handoff
 
-**От:** EM + Senior Engineer (`sourcemaps`, план) → **к:** SDE
+**От:** QA + Security (`sourcemaps`) → **к:** DevOps + SRE (Phase 6, когда пользователь решит) или шагу 4
 
-- Задачи M1–M11: `decisions/engineering-manager/sourcemaps.md`; подход — `decisions/senior-engineer/sourcemaps.md`.
-- ADR 008–011. Начать с M1; в M5 первым — спайк goja.
+- Шаги 1–3 построены и проверены, не задеплоены.
+- Что построено и отступления: `decisions/sde/sourcemaps.md`.
+- Для деплоя добавилось: S3 (бакет закрытый; `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`,
+  `S3_REGION`, `S3_SECURE`), временный диск для сборки архивов (`ASSEMBLE_TMP_DIR`, до 1 ГБ на сборку,
+  до 2 одновременно), исходящий доступ обработчика к сайтам проектов (карты с сайта).
+- Для шага 4: таблицы `release`/`release_project` уже есть; коммиты и деплои плагина принимаются без хранения.
