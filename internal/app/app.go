@@ -46,6 +46,7 @@ import (
 	handlerSentryapiP "github.com/rendau/zorko/internal/handler/sentryapi"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
 	infraS3P "github.com/rendau/zorko/internal/infra/s3"
+	serviceArtifactgcServiceP "github.com/rendau/zorko/internal/service/artifactgc/service"
 	serviceAssembleServiceP "github.com/rendau/zorko/internal/service/assemble/service"
 	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
 	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
@@ -80,6 +81,7 @@ type App struct {
 	assembler    *serviceAssembleServiceP.Service
 	symbolicator *serviceSymbolicateServiceP.Service
 	processor    *serviceProcessorServiceP.Service
+	artifactGc   *serviceArtifactgcServiceP.Service
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
@@ -259,6 +261,11 @@ func (a *App) Init() {
 				CacheBytes: int64(config.Conf.SourcemapCacheMb) << 20,
 			}, artifactService, siteFetcher)
 			symbolicator = a.symbolicator
+
+			// уборка карт: раз в сутки, одна на все копии
+			a.artifactGc = serviceArtifactgcServiceP.New(serviceArtifactgcServiceP.Config{
+				Retention: config.Conf.SourcemapRetention,
+			}, artifactService)
 		}
 
 		a.processor = serviceProcessorServiceP.New(serviceProcessorServiceP.Config{
@@ -393,6 +400,11 @@ func (a *App) Start() {
 		slog.Info("processor started")
 	}
 
+	// artifact gc
+	if a.artifactGc != nil {
+		a.artifactGc.Start(a.ctx)
+	}
+
 	// ingest http server
 	if a.ingestHttpServer != nil {
 		go func() {
@@ -521,6 +533,11 @@ func (a *App) WaitJobs() {
 	// processor: дописывает и подтверждает текущую пачку
 	if a.processor != nil {
 		a.processor.Wait()
+	}
+
+	// artifact gc
+	if a.artifactGc != nil {
+		a.artifactGc.Wait()
 	}
 }
 

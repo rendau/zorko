@@ -24,6 +24,13 @@ type RepoDbI interface {
 	GetSiteFetch(ctx context.Context, projectId int64, url string) (*model.SiteFetch, bool, error)
 	SaveSiteFetch(ctx context.Context, m *model.SiteFetch) error
 	ListSiteFetch(ctx context.Context, projectId int64, state string, limit int) ([]*model.SiteFetch, error)
+
+	TryLock(ctx context.Context, key int64) (func(), bool, error)
+	TouchBlob(ctx context.Context, sha1 string, size int64) error
+	DeleteStaleBundles(ctx context.Context, retention time.Duration, limit int) (int64, error)
+	OrphanBlobs(ctx context.Context, olderThan time.Duration, limit int) ([]string, error)
+	DeleteBlobs(ctx context.Context, sha1s []string, olderThan time.Duration) ([]string, error)
+	DeleteOldSiteFetch(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 type RepoBlobI interface {

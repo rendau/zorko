@@ -138,6 +138,10 @@ func (s *Service) DeleteChunks(ctx context.Context, checksums []string) error {
 // StoreFile — файл в S3 под SHA-1 содержимого (gzip); одинаковые файлы хранятся один раз
 func (s *Service) StoreFile(ctx context.Context, data []byte) (string, error) {
 	checksum := Sha1Hex(data)
+	// сначала отметка в базе: уборка не удалит файл, который сейчас попадёт в новый архив
+	if err := s.repoDb.TouchBlob(ctx, checksum, int64(len(data))); err != nil {
+		return "", fmt.Errorf("repoDb.TouchBlob: %w", err)
+	}
 	exists, err := s.repoBlob.FileExists(ctx, checksum)
 	if err != nil {
 		return "", fmt.Errorf("repoBlob.FileExists: %w", err)
@@ -288,4 +292,72 @@ func (s *Service) ListSiteFetch(ctx context.Context, projectId int64, state stri
 		return nil, fmt.Errorf("repoDb.ListSiteFetch: %w", err)
 	}
 	return items, nil
+}
+
+// уборка (ADR-009, спека раздел 8)
+
+const gcLockKey = 7302001 // zorko: уборка карт
+
+// GcBlobGrace — файл без ссылок удаляется, если его не трогали дольше этого
+const GcBlobGrace = 24 * time.Hour
+
+func (s *Service) GcLock(ctx context.Context) (func(), bool, error) {
+	unlock, ok, err := s.repoDb.TryLock(ctx, gcLockKey)
+	if err != nil {
+		return nil, false, fmt.Errorf("repoDb.TryLock: %w", err)
+	}
+	return unlock, ok, nil
+}
+
+func (s *Service) DeleteStaleBundles(ctx context.Context, retention time.Duration) (int64, error) {
+	n, err := s.repoDb.DeleteStaleBundles(ctx, retention, 1000)
+	if err != nil {
+		return n, fmt.Errorf("repoDb.DeleteStaleBundles: %w", err)
+	}
+	return n, nil
+}
+
+// DeleteOrphanFiles — файлы без ссылок: сначала строка в базе (с повторной проверкой), потом S3
+func (s *Service) DeleteOrphanFiles(ctx context.Context) (int, error) {
+	total := 0
+	for {
+		orphans, err := s.repoDb.OrphanBlobs(ctx, GcBlobGrace, 500)
+		if err != nil {
+			return total, fmt.Errorf("repoDb.OrphanBlobs: %w", err)
+		}
+		if len(orphans) == 0 {
+			return total, nil
+		}
+		deleted, err := s.repoDb.DeleteBlobs(ctx, orphans, GcBlobGrace)
+		if err != nil {
+			return total, fmt.Errorf("repoDb.DeleteBlobs: %w", err)
+		}
+		if err = s.repoBlob.DeleteFiles(ctx, deleted); err != nil {
+			return total, fmt.Errorf("repoBlob.DeleteFiles: %w", err)
+		}
+		total += len(deleted)
+		if len(orphans) < 500 || len(deleted) == 0 {
+			return total, nil
+		}
+	}
+}
+
+// DeleteOldChunks — куски брошенных загрузок
+func (s *Service) DeleteOldChunks(ctx context.Context, before time.Time) (int, error) {
+	chunks, err := s.repoBlob.OldChunks(ctx, before)
+	if err != nil {
+		return 0, fmt.Errorf("repoBlob.OldChunks: %w", err)
+	}
+	if err = s.repoBlob.DeleteChunks(ctx, chunks); err != nil {
+		return 0, fmt.Errorf("repoBlob.DeleteChunks: %w", err)
+	}
+	return len(chunks), nil
+}
+
+func (s *Service) DeleteOldSiteFetch(ctx context.Context, olderThan time.Duration) (int64, error) {
+	n, err := s.repoDb.DeleteOldSiteFetch(ctx, olderThan)
+	if err != nil {
+		return 0, fmt.Errorf("repoDb.DeleteOldSiteFetch: %w", err)
+	}
+	return n, nil
 }
