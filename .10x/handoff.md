@@ -1,7 +1,9 @@
 # Handoff
 
-**От:** EM + Senior Engineer (Phase 3) → **к:** SDE (Phase 4)
+**От:** QA + Security (Phase 5) → **к:** DevOps + SRE (Phase 6) или шагу 2
 
-- Задачи T1–T13: `decisions/engineering-manager/error-ingest.md`.
-- Подход по каждой: `decisions/senior-engineer/error-ingest.md`.
-- ADR-001…004, спека — обязательны к сверке.
+- Шаг 1 построен и проверен: `decisions/sde/error-ingest.md` (что и отступления),
+  `reviews/2026-11-04-qa-report.md`, `reviews/2026-11-04-security-review.md`.
+- Для деплоя нужны: Postgres, ClickHouse, Redpanda; env — `internal/config/config.go` и
+  `.env.example`; приём — отдельный домен на `INGEST_PORT`; админский API наружу не открывать.
+- CI `deploy.yml` выключен (ветка `disabled`), тесты в нём закомментированы.

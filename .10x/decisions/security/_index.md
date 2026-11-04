@@ -1,3 +1,5 @@
 # security — общие решения
 
-Пока решений нет.
+
+## Активные
+- [error-ingest](error-ingest.md)

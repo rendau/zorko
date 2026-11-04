@@ -3,7 +3,7 @@
 ## Библиотеки
 - `github.com/twmb/franz-go/pkg/kgo` (+ `kadm` для создания темы на стенде).
 - `github.com/ClickHouse/clickhouse-go/v2` — нативный протокол, батч-вставки.
-- `github.com/golang-migrate/migrate/v4/database/clickhouse` — миграции CH.
+- ~~golang-migrate для CH~~ → свой раннер `internal/infra/chmigrate` (см. sde/error-ingest.md, п. 1).
 - `github.com/andybalholm/brotli` — распаковка `br`.
 - `github.com/rendau/mobone/v2` — CRUD org/project/project_key.
 
