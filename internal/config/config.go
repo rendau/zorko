@@ -37,6 +37,11 @@ var Conf = struct {
 	IngestMaxBodyBytes  int64  `env:"INGEST_MAX_BODY_BYTES" envDefault:"20971520"`
 	IngestMaxEventBytes int64  `env:"INGEST_MAX_EVENT_BYTES" envDefault:"1048576"`
 
+	// интерфейс (SPA): статика из AdminDir на своём порту; адрес API — в /config.js
+	AdminPort       string `env:"ADMIN_PORT" envDefault:"8001"`
+	AdminDir        string `env:"ADMIN_DIR" envDefault:"./admin-ui"`
+	AdminApiBaseUrl string `env:"ADMIN_API_BASE_URL"`
+
 	ProcessorEnabled   bool          `env:"PROCESSOR_ENABLED" envDefault:"true"`
 	ProcessorBatchSize int           `env:"PROCESSOR_BATCH_SIZE" envDefault:"500"`
 	ProcessorBatchWait time.Duration `env:"PROCESSOR_BATCH_WAIT" envDefault:"1s"`

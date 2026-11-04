@@ -67,6 +67,7 @@ type App struct {
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
 	ingestHttpServer *http.Server
+	adminHttpServer  *http.Server
 	systemHttpServer *http.Server
 
 	ctx       context.Context
@@ -277,6 +278,11 @@ func (a *App) Init() {
 		}
 	}
 
+	// admin http server (интерфейс)
+	{
+		a.adminHttpServer = AdminHttpServerCreate(config.Conf.AdminPort, config.Conf.AdminDir, config.Conf.AdminApiBaseUrl)
+	}
+
 	// system http server (healthcheck, docs, metrics)
 	{
 		a.systemHttpServer = SystemHttpServerCreate()
@@ -329,6 +335,17 @@ func (a *App) Start() {
 		slog.Info("http-server started " + a.httpServer.Addr)
 	}
 
+	// admin http server
+	if a.adminHttpServer != nil {
+		go func() {
+			err := a.adminHttpServer.ListenAndServe()
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCheck(err, "admin-http-server stopped")
+			}
+		}()
+		slog.Info("admin-http-server started " + a.adminHttpServer.Addr)
+	}
+
 	// system http server
 	{
 		go func() {
@@ -373,6 +390,17 @@ func (a *App) Stop() {
 
 		if err := a.httpServer.Shutdown(ctx); err != nil {
 			slog.Error("http-server shutdown error", "error", err)
+			a.exitCode = 1
+		}
+	}
+
+	// admin http server
+	if a.adminHttpServer != nil {
+		ctx, ctxCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer ctxCancel()
+
+		if err := a.adminHttpServer.Shutdown(ctx); err != nil {
+			slog.Error("admin-http-server shutdown error", "error", err)
 			a.exitCode = 1
 		}
 	}

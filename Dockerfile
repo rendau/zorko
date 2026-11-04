@@ -8,5 +8,6 @@ COPY ./cmd/build/. ./
 COPY ./docs ./docs
 COPY ./migrations ./migrations
 COPY ./migrations-ch ./migrations-ch
+COPY ./admin-ui ./admin-ui
 
 CMD ["./svc"]
