@@ -14,3 +14,4 @@
 
 ## Активные
 - [error-ingest](error-ingest.md) — компоненты, потоки, отказы шага 1
+- [issue-ui](issue-ui.md) — шаг 2
