@@ -44,7 +44,9 @@ import (
 	serviceProcessorServiceP "github.com/rendau/zorko/internal/service/processor/service"
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
 	serviceRatelimitServiceP "github.com/rendau/zorko/internal/service/ratelimit/service"
+	serviceSearchqueryServiceP "github.com/rendau/zorko/internal/service/searchquery/service"
 	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
+	usecaseIssueP "github.com/rendau/zorko/internal/usecase/issue"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
@@ -199,6 +201,14 @@ func (a *App) Init() {
 		}, a.queue, serviceNormalizeServiceP.New(), serviceGroupingServiceP.New(), issueService, eventService)
 	}
 
+	// issue, event, tag (чтение для интерфейса)
+	issueReadService := domainIssueServiceP.New(domainIssueRepoDbP.New(a.pgpool))
+	eventReadService := domainEventServiceP.NewRead(domainEventRepoChP.New(a.chConn))
+	issueUsecase := usecaseIssueP.New(sessionService, projectService, issueReadService, eventReadService, serviceSearchqueryServiceP.New())
+	issueHandler := handlerGrpcP.NewIssue(issueUsecase)
+	eventHandler := handlerGrpcP.NewEvent(issueUsecase)
+	tagHandler := handlerGrpcP.NewTag(issueUsecase)
+
 	// grpc server
 	{
 		a.grpcServer = NewGrpcServer("main", sessionService, func(server *grpc.Server) {
@@ -206,6 +216,9 @@ func (a *App) Init() {
 			zorko_v1.RegisterOrgServiceServer(server, orgHandler)
 			zorko_v1.RegisterProjectServiceServer(server, projectHandler)
 			zorko_v1.RegisterProjectKeyServiceServer(server, projectKeyHandler)
+			zorko_v1.RegisterIssueServiceServer(server, issueHandler)
+			zorko_v1.RegisterEventServiceServer(server, eventHandler)
+			zorko_v1.RegisterTagServiceServer(server, tagHandler)
 		})
 	}
 
@@ -226,6 +239,9 @@ func (a *App) Init() {
 				zorko_v1.RegisterOrgServiceHandler,
 				zorko_v1.RegisterProjectServiceHandler,
 				zorko_v1.RegisterProjectKeyServiceHandler,
+				zorko_v1.RegisterIssueServiceHandler,
+				zorko_v1.RegisterEventServiceHandler,
+				zorko_v1.RegisterTagServiceHandler,
 			}
 			for _, h := range handlers {
 				err = h(context.Background(), mux, conn)

@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "common/common.proto";
+
+option go_package = "/zorko_v1";
+
+// IssueService — проблемы: список с фильтрами и поиском, карточка, график, теги (ADR-006)
+service IssueService {
+  rpc List(IssueListReq) returns (IssueListRep) {
+    option (google.api.http) = {
+      get: "/issue"
+    };
+  }
+
+  rpc Get(IssueGetReq) returns (IssueGetRep) {
+    option (google.api.http) = {
+      get: "/issue/{id}"
+    };
+  }
+
+  rpc Stat(IssueStatReq) returns (IssueStatRep) {
+    option (google.api.http) = {
+      get: "/issue/{id}/stat"
+    };
+  }
+
+  rpc Tags(IssueTagsReq) returns (IssueTagsRep) {
+    option (google.api.http) = {
+      get: "/issue/{id}/tag"
+    };
+  }
+}
+
+message IssueMain {
+  int64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  int64 project_id = 3;
+  string title = 4;
+  string culprit = 5;
+  string type = 6;
+  string value = 7;
+  string level = 8;
+  string platform = 9;
+  string status = 10;
+  google.protobuf.Timestamp first_seen = 11;
+  google.protobuf.Timestamp last_seen = 12;
+  // всего событий за всё время (Postgres)
+  int64 times_seen = 13;
+  string first_release = 14;
+  string last_release = 15;
+}
+
+// List
+
+message IssueListReq {
+  common.ListParamsSt list_params = 1;
+  int64 org_id = 2;
+  // пусто — все проекты организации
+  repeated int64 project_ids = 3;
+  string environment = 4;
+  // 1h, 24h, 7d, 14d (по умолчанию), 30d
+  string period = 5;
+  // строка поиска: browser.name:Chrome !level:info url:*cart* корзина
+  string q = 6;
+  // last_seen (по умолчанию), first_seen, events, users
+  string sort = 7;
+}
+
+message IssueListItem {
+  IssueMain issue = 1;
+  // за период
+  int64 events = 2;
+  int64 users = 3;
+  // события по 24 равным интервалам периода, от старых к новым
+  repeated int64 sparkline = 4;
+}
+
+message IssueListRep {
+  common.PaginationInfoSt pagination_info = 1;
+  repeated IssueListItem results = 2;
+  // проблем за период больше предела — показаны самые частые
+  bool truncated = 3;
+}
+
+// Get
+
+message IssueGetReq {
+  int64 id = 1;
+  string period = 2;
+  string environment = 3;
+}
+
+message IssueGetRep {
+  IssueMain issue = 1;
+  int64 events = 2;
+  int64 users = 3;
+}
+
+// Stat
+
+message IssueStatReq {
+  int64 id = 1;
+  string period = 2;
+  // hour, day
+  string interval = 3;
+  string environment = 4;
+}
+
+message IssueStatPoint {
+  google.protobuf.Timestamp ts = 1;
+  int64 count = 2;
+}
+
+message IssueStatRep {
+  repeated IssueStatPoint points = 1;
+}
+
+// Tags
+
+message IssueTagsReq {
+  int64 id = 1;
+  string period = 2;
+  string environment = 3;
+  string q = 4;
+}
+
+message TagValueCount {
+  string value = 1;
+  int64 count = 2;
+}
+
+message TagDist {
+  string key = 1;
+  int64 total = 2;
+  repeated TagValueCount values = 3;
+}
+
+message IssueTagsRep {
+  repeated TagDist tags = 1;
+}

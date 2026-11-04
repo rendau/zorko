@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "/zorko_v1";
+
+// TagService — подсказки строки поиска
+service TagService {
+  rpc Keys(TagKeysReq) returns (TagKeysRep) {
+    option (google.api.http) = {
+      get: "/tag/key"
+    };
+  }
+
+  rpc Values(TagValuesReq) returns (TagValuesRep) {
+    option (google.api.http) = {
+      get: "/tag/value"
+    };
+  }
+}
+
+message TagKeysReq {
+  int64 org_id = 1;
+  repeated int64 project_ids = 2;
+  string period = 3;
+}
+
+message TagKeysRep {
+  repeated string keys = 1;
+}
+
+message TagValuesReq {
+  int64 org_id = 1;
+  repeated int64 project_ids = 2;
+  string period = 3;
+  string key = 4;
+  string prefix = 5;
+}
+
+message TagValuesRep {
+  repeated string values = 1;
+}

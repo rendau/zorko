@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "common/common.proto";
+
+option go_package = "/zorko_v1";
+
+// EventService — сохранённые события проблемы
+service EventService {
+  rpc List(EventListReq) returns (EventListRep) {
+    option (google.api.http) = {
+      get: "/event"
+    };
+  }
+
+  // Get — событие целиком; event_id = latest / oldest — последнее / первое
+  rpc Get(EventGetReq) returns (EventMain) {
+    option (google.api.http) = {
+      get: "/event/{event_id}"
+    };
+  }
+}
+
+message EventSummary {
+  string event_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string level = 3;
+  string release = 4;
+  string environment = 5;
+  string browser = 6;
+  string os = 7;
+  string device = 8;
+  string user_id = 9;
+  string user_email = 10;
+  string user_ip = 11;
+  string url = 12;
+  string title = 13;
+  string message = 14;
+}
+
+message EventListReq {
+  common.ListParamsSt list_params = 1;
+  int64 issue_id = 2;
+  string q = 3;
+  // по умолчанию 30d — весь срок хранения
+  string period = 4;
+}
+
+message EventListRep {
+  common.PaginationInfoSt pagination_info = 1;
+  repeated EventSummary results = 2;
+}
+
+message EventGetReq {
+  string event_id = 1;
+  int64 issue_id = 2;
+}
+
+message EventMain {
+  EventSummary summary = 1;
+  // исходный JSON Sentry после вычистки
+  string data = 2;
+  string prev_event_id = 3;
+  string next_event_id = 4;
+}
