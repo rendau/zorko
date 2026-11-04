@@ -1,14 +1,16 @@
 # Статус
 
-**Фаза:** Phase 0 (Brainstorming) для `error-ingest`; находки discovery подтверждены пользователем
+**Фаза:** Phase 0 (Brainstorming) `error-ingest` — спека написана, ждёт просмотра пользователем
 **Обновлено:** 2026-11-04
 
 ## Готово
 - Каркас из gotemplate, репозиторий github.com/rendau/zorko (приватный, ветка master).
-- Discovery: состояние записано в `.10x/decisions/*/_index.md`.
+- Discovery подтверждён.
+- Брейншторм `error-ingest`: 4 части проекта согласованы, спека
+  `.10x/specs/2026-11-04-error-ingest-design.md`.
 
-## Сейчас
-- Брейншторм шага 1 `error-ingest`.
+## Дальше
+- Просмотр спеки пользователем → Phase 1 (Strategy) → Phase 2 (ADR) → Phase 3 (план) → код.
 
 ## Блокеры
 - Нет.
