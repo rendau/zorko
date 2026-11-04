@@ -10,6 +10,7 @@ const (
 	CodeTimeBudgetExceeded = "time_budget_exceeded"
 	CodeSiteDisabled       = "site_disabled"
 	CodeSiteHostNotAllowed = "site_host_not_allowed"
+	CodeSiteAddressBlocked = "site_address_blocked"
 	CodeSiteTimeout        = "site_timeout"
 	CodeSiteNoSourcemapUrl = "site_no_sourcemap_url"
 	CodeSiteTooLarge       = "site_too_large"

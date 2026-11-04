@@ -219,7 +219,7 @@ func TestFetchBlocksInternalAddresses(t *testing.T) {
 	s, st, _ := setup(t, Config{AllowLoopback: true}, nil)
 	res, err := s.Fetch(context.Background(), 1, st.srv.URL+"/assets/a.js")
 	require.NoError(t, err)
-	assert.Equal(t, CodeHostNotAllowed, res.Code)
+	assert.Equal(t, CodeAddressBlocked, res.Code)
 	assert.Zero(t, st.jsHits.Load())
 
 	for _, addr := range []string{"127.0.0.1:80", "[::1]:80", "169.254.169.254:80", "0.0.0.0:80", "[::ffff:127.0.0.1]:80", "[fe80::1]:80"} {

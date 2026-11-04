@@ -4,6 +4,9 @@
 //
 // -distinct — сколько разных ошибок (отпечатков) в потоке; события одной ошибки одинаковые,
 // как при плохом релизе.
+//
+// -js — сжатый файл сборки (после sentry-cli sourcemaps inject): кадры указывают на настоящие места в нём,
+// событие несёт метку файла (debug_meta) — нагрузка на перевод стека по картам.
 package main
 
 import (
@@ -20,10 +23,50 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf16"
 )
+
+// minified — кадры по настоящему сжатому файлу (режим -js)
+var minified struct {
+	url     string
+	debugId string
+	frames  string
+}
+
+func loadMinified(path string, needles []string) error {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	src := string(b)
+	i := strings.LastIndex(src, "//# debugId=")
+	if i < 0 {
+		return fmt.Errorf("no //# debugId= in %s (run sentry-cli sourcemaps inject)", path)
+	}
+	minified.debugId = strings.TrimSpace(strings.SplitN(src[i+len("//# debugId="):], "\n", 2)[0])
+	minified.debugId = strings.Fields(minified.debugId)[0]
+	minified.url = "https://shop.mechta.kz/assets/" + path[strings.LastIndex(path, "/")+1:]
+	frames := make([]string, 0, len(needles))
+	for _, n := range needles {
+		off := strings.Index(src, n)
+		if off < 0 {
+			return fmt.Errorf("needle %q not found", n)
+		}
+		lineStart := strings.LastIndex(src[:off], "\n") + 1
+		line := strings.Count(src[:off], "\n") + 1
+		col := len(utf16.Encode([]rune(src[lineStart:off]))) + 1
+		frames = append(frames, fmt.Sprintf(`{"filename":%q,"abs_path":%q,"function":"FN","lineno":%d,"colno":%d,"in_app":true}`,
+			minified.url, minified.url, line, col))
+	}
+	// старые кадры первыми, место падения — последним
+	slices.Reverse(frames)
+	minified.frames = strings.Join(frames, ",")
+	return nil
+}
 
 func main() {
 	dsn := flag.String("dsn", "", "DSN ключа проекта: <схема>://<key>@<хост>/<project_id>")
@@ -31,7 +74,15 @@ func main() {
 	concurrency := flag.Int("c", 32, "сколько запросов одновременно")
 	distinct := flag.Int("distinct", 1, "сколько разных ошибок в потоке")
 	origin := flag.String("origin", "", "заголовок Origin (проверка разрешённых сайтов)")
+	jsPath := flag.String("js", "", "сжатый JS с меткой //# debugId= — кадры по его местам и debug_meta")
+	needles := flag.String("needles", "throw RangeError,t(this.rules.find,e.toFixed", "места в -js через запятую (старые кадры первыми)")
 	flag.Parse()
+
+	if *jsPath != "" {
+		if err := loadMinified(*jsPath, strings.Split(*needles, ",")); err != nil {
+			log.Fatalf("js: %v", err)
+		}
+	}
 
 	endpoint, key, err := parseDsn(*dsn)
 	if err != nil {
@@ -125,6 +176,17 @@ func envelope(variant int) []byte {
 	eventId := hex.EncodeToString(id)
 	ts := strconv.FormatFloat(float64(time.Now().UnixMilli())/1000, 'f', 3, 64)
 	fn := "addItem" + strconv.Itoa(variant)
+
+	if minified.url != "" {
+		event := `{"event_id":"` + eventId + `","timestamp":` + ts + `,"platform":"javascript","level":"error",` +
+			`"release":"shop@1.4.2","environment":"production",` +
+			`"exception":{"values":[{"type":"RangeError","value":"Сумма корзины меньше 1000",` +
+			`"mechanism":{"type":"onerror","handled":false},"stacktrace":{"frames":[` + strings.ReplaceAll(minified.frames, "FN", fn) + `]}}]},` +
+			`"debug_meta":{"images":[{"type":"sourcemap","code_file":"` + minified.url + `","debug_id":"` + minified.debugId + `"}]},` +
+			`"request":{"url":"https://shop.mechta.kz/cart","headers":{"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36"}},` +
+			`"user":{"id":"u-` + strconv.Itoa(int(id[0])%200) + `"},"sdk":{"name":"sentry.javascript.vue","version":"11.10.0"}}`
+		return []byte(`{"event_id":"` + eventId + `"}` + "\n" + `{"type":"event"}` + "\n" + event + "\n")
+	}
 
 	event := `{"event_id":"` + eventId + `","timestamp":` + ts + `,"platform":"javascript","level":"error",` +
 		`"release":"shop@1.4.2","environment":"production",` +

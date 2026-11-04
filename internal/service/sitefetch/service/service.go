@@ -29,6 +29,7 @@ import (
 // Причины неудачи (совпадают с кодами кадров в symbolicate)
 const (
 	CodeHostNotAllowed  = "site_host_not_allowed"
+	CodeAddressBlocked  = "site_address_blocked"
 	CodeTimeout         = "site_timeout"
 	CodeNoSourcemapUrl  = "site_no_sourcemap_url"
 	CodeTooLarge        = "site_too_large"
@@ -338,7 +339,9 @@ func (s *Service) get(ctx context.Context, p *projectModel.Main, u *url.URL) ([]
 
 func errCode(err error) string {
 	switch {
-	case errors.Is(err, errBlockedAddress), errors.Is(err, errHostNotAllowed):
+	case errors.Is(err, errBlockedAddress):
+		return CodeAddressBlocked
+	case errors.Is(err, errHostNotAllowed):
 		return CodeHostNotAllowed
 	case errors.Is(err, context.DeadlineExceeded):
 		return CodeTimeout

@@ -62,8 +62,15 @@ const build = computed(() => buildSnippet(ingestUrl(firstDsn.value), orgSlug.val
 // #maps из плашки карточки проблемы — прокрутить к картам
 onMounted(() => {
   void org.load()
-  if (route.hash === '#maps')
-    setTimeout(() => document.getElementById('maps')?.scrollIntoView({ behavior: 'smooth' }), 300)
+})
+
+// #maps из плашки карточки проблемы — прокрутить к картам, когда страница отрисована
+const unwatchHash = watch(project, async (p) => {
+  if (!p || route.hash !== '#maps')
+    return
+  unwatchHash()
+  await nextTick()
+  document.getElementById('maps')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 })
 
 watch(project, (p) => {

@@ -74,7 +74,7 @@ function codeText(code: string): string {
         <UFormField :label="t('settings.siteFetch.headerName')" :hint="t('settings.siteFetch.optional')">
           <UInput v-model="headerName" class="w-full font-mono" :disabled="!isAdmin" placeholder="X-Zorko-Token" />
         </UFormField>
-        <UFormField :label="t('settings.siteFetch.headerValue')" :hint="project.site_fetch_header_value_set ? t('settings.siteFetch.headerSet') : t('settings.siteFetch.optional')">
+        <UFormField :label="t('settings.siteFetch.headerValue')" :hint="project.site_fetch_header_value_set ? undefined : t('settings.siteFetch.optional')" :help="project.site_fetch_header_value_set ? t('settings.siteFetch.headerSet') : undefined">
           <UInput v-model="headerValue" type="password" autocomplete="new-password" class="w-full" :disabled="!isAdmin || headerClear" />
         </UFormField>
       </div>
