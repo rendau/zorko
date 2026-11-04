@@ -1,6 +1,6 @@
 # Статус
 
-**Фаза:** Discovery Complete → Phase 0 (Brainstorming) для `error-ingest`
+**Фаза:** Phase 0 (Brainstorming) для `error-ingest`; находки discovery подтверждены пользователем
 **Обновлено:** 2026-11-04
 
 ## Готово

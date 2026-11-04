@@ -1,6 +1,6 @@
 # Architect — общие решения
 
-## [DISCOVERED] Каркас из gotemplate
+## Каркас из gotemplate
 - Один Go-бинарь `svc`: gRPC (5050) + HTTP-шлюз grpc-gateway (`HTTP_PORT`) + системный HTTP
   (3003: `/healthcheck`, `/docs/*`, `/metrics`).
 - Слои Clean Architecture + DDD: handler → usecase → domain service → repo; фоновое и

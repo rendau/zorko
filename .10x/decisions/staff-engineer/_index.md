@@ -1,6 +1,6 @@
 # Staff Engineer — общие решения
 
-## [DISCOVERED] Соглашения из каркаса и CLAUDE.md
+## Соглашения из каркаса и CLAUDE.md
 - Таблицы и REST-пути — в единственном числе; пагинация с `page=0`; update — `PUT`.
 - Ошибки: отказ по делу — `errs.Err`, прочее — сбой (`service_not_available`);
   `errors.Is`/`errors.AsType`, обёртка `fmt.Errorf("...: %w")`.
