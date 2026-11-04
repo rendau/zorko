@@ -1,6 +1,6 @@
 # Статус
 
-**Фаза:** Phase 0 (Brainstorming) `error-ingest` — спека написана, ждёт просмотра пользователем
+**Фаза:** Strategy Complete (`error-ingest`)
 **Обновлено:** 2026-11-04
 
 ## Готово

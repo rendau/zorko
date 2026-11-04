@@ -1,9 +1,7 @@
 # Handoff
 
-**От:** брейншторм → **к:** пользователю на просмотр, затем CTO/PM (Phase 1)
+**От:** CTO/PM (Phase 1) → **к:** Architect + Staff Engineer (Phase 2)
 
-- Спека шага 1: `.10x/specs/2026-11-04-error-ingest-design.md`.
-- Ключевые решения пользователя: Redpanda; хранение 30 дней; несколько организаций;
-  «считать всё, хранить часть» (100 полных записей/мин на проблему).
-- Для Phase 2 нужны ADR: очередь Redpanda; две таблицы ClickHouse (event_stat + event);
-  отпечаток v1 и таблица issue_hash; отдельный порт приёма.
+- Спека (одобрена): `.10x/specs/2026-11-04-error-ingest-design.md`.
+- Стратегия и истории: `decisions/cto/error-ingest.md`, `decisions/product-manager/error-ingest.md`.
+- Нужны ADR: очередь Redpanda; две таблицы ClickHouse; отпечаток v1 + issue_hash; отдельный порт приёма.
