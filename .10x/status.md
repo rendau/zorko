@@ -1,6 +1,6 @@
 # Статус
 
-**Фаза:** Strategy Complete (`error-ingest`)
+**Фаза:** Design Complete (`error-ingest`), ADR-001…004
 **Обновлено:** 2026-11-04
 
 ## Готово
