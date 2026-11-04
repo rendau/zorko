@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -20,6 +21,10 @@ import (
 
 	"github.com/rendau/zorko/internal/config"
 	"github.com/rendau/zorko/internal/constant"
+	domainEventRepoChP "github.com/rendau/zorko/internal/domain/event/repo/ch"
+	domainEventServiceP "github.com/rendau/zorko/internal/domain/event/service"
+	domainIssueRepoDbP "github.com/rendau/zorko/internal/domain/issue/repo/db"
+	domainIssueServiceP "github.com/rendau/zorko/internal/domain/issue/service"
 	domainOrgRepoDbP "github.com/rendau/zorko/internal/domain/org/repo/db"
 	domainOrgServiceP "github.com/rendau/zorko/internal/domain/org/service"
 	domainProjectRepoDbP "github.com/rendau/zorko/internal/domain/project/repo/db"
@@ -27,7 +32,15 @@ import (
 	domainProjectKeyRepoDbP "github.com/rendau/zorko/internal/domain/project_key/repo/db"
 	domainProjectKeyServiceP "github.com/rendau/zorko/internal/domain/project_key/service"
 	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
+	handlerIngestP "github.com/rendau/zorko/internal/handler/ingest"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
+	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
+	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
+	serviceNormalizeServiceP "github.com/rendau/zorko/internal/service/normalize/service"
+	serviceProcessorServiceP "github.com/rendau/zorko/internal/service/processor/service"
+	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
+	serviceRatelimitServiceP "github.com/rendau/zorko/internal/service/ratelimit/service"
+	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
@@ -39,9 +52,14 @@ type App struct {
 
 	pgpool *pgxpool.Pool
 	chConn driver.Conn
+	queue  *serviceQueueServiceP.Service
+
+	keyCache  *serviceKeycacheServiceP.Service
+	processor *serviceProcessorServiceP.Service
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
+	ingestHttpServer *http.Server
 	systemHttpServer *http.Server
 
 	ctx       context.Context
@@ -104,6 +122,64 @@ func (a *App) Init() {
 	projectKeyService := domainProjectKeyServiceP.New(projectKeyRepo)
 	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService)
 	projectKeyHandler := handlerGrpcP.NewProjectKey(projectKeyUsecase)
+
+	// queue
+	{
+		if len(config.Conf.KafkaBrokers) == 0 && (config.Conf.IngestEnabled || config.Conf.ProcessorEnabled) {
+			errCheck(errors.New("KAFKA_BROKERS is empty"), "queue init")
+		}
+
+		a.queue, err = serviceQueueServiceP.New(serviceQueueServiceP.Config{
+			Brokers:         config.Conf.KafkaBrokers,
+			Topic:           config.Conf.KafkaTopicEvents,
+			ConsumerGroup:   config.Conf.KafkaConsumerGroup,
+			TopicPartitions: config.Conf.KafkaTopicPartitions,
+			TopicRetention:  config.Conf.KafkaTopicRetention,
+			WithProducer:    config.Conf.IngestEnabled,
+			WithConsumer:    config.Conf.ProcessorEnabled,
+			FetchMaxWait:    config.Conf.ProcessorBatchWait,
+		})
+		errCheck(err, "queue init")
+
+		ctx, ctxCancel := context.WithTimeout(a.ctx, 15*time.Second)
+		err = a.queue.EnsureTopic(ctx)
+		ctxCancel()
+		errCheck(err, "queue.EnsureTopic")
+	}
+
+	// ingest
+	if config.Conf.IngestEnabled {
+		a.keyCache = serviceKeycacheServiceP.New(projectKeyService, 30*time.Second)
+		rateLimiter := serviceRatelimitServiceP.New()
+		ingestUsecase := usecaseIngestP.New(a.keyCache, rateLimiter, a.queue)
+		ingestHandler := handlerIngestP.New(ingestUsecase, config.Conf.IngestMaxBodyBytes, config.Conf.IngestMaxEventBytes)
+
+		a.ingestHttpServer = &http.Server{
+			Addr:              ":" + config.Conf.IngestPort,
+			Handler:           recoverMiddleware(ingestHandler.Router()),
+			ReadHeaderTimeout: 2 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    64 * 1024,
+		}
+	}
+
+	// processor
+	if config.Conf.ProcessorEnabled {
+		issueRepo := domainIssueRepoDbP.New(a.pgpool)
+		issueService := domainIssueServiceP.New(issueRepo)
+
+		eventRepo := domainEventRepoChP.New(a.chConn)
+		eventService := domainEventServiceP.New(eventRepo)
+
+		a.processor = serviceProcessorServiceP.New(serviceProcessorServiceP.Config{
+			BatchSize:      config.Conf.ProcessorBatchSize,
+			StorePerMinute: int64(config.Conf.IssueEventStorePerMinute),
+			RetryMin:       time.Second,
+			RetryMax:       30 * time.Second,
+		}, a.queue, serviceNormalizeServiceP.New(), serviceGroupingServiceP.New(), issueService, eventService)
+	}
 
 	// grpc server
 	{
@@ -184,6 +260,28 @@ func (a *App) Start() {
 		errCheck(err, "grpcServer.Start")
 	}
 
+	// key cache
+	if a.keyCache != nil {
+		a.keyCache.Start(a.ctx)
+	}
+
+	// processor
+	if a.processor != nil {
+		a.processor.Start(a.ctx)
+		slog.Info("processor started")
+	}
+
+	// ingest http server
+	if a.ingestHttpServer != nil {
+		go func() {
+			err := a.ingestHttpServer.ListenAndServe()
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCheck(err, "ingest-http-server stopped")
+			}
+		}()
+		slog.Info("ingest-http-server started " + a.ingestHttpServer.Addr)
+	}
+
 	// http-gw server
 	{
 		go func() {
@@ -221,6 +319,17 @@ func (a *App) Stop() {
 	// stop context
 	a.ctxCancel()
 
+	// ingest http server: новые события больше не принимаются, начатые запросы дописываются в очередь
+	if a.ingestHttpServer != nil {
+		ctx, ctxCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer ctxCancel()
+
+		if err := a.ingestHttpServer.Shutdown(ctx); err != nil {
+			slog.Error("ingest-http-server shutdown error", "error", err)
+			a.exitCode = 1
+		}
+	}
+
 	// http-gw server
 	{
 		ctx, ctxCancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -249,6 +358,16 @@ func (a *App) Stop() {
 
 func (a *App) WaitJobs() {
 	slog.Info("waiting jobs")
+
+	// key cache
+	if a.keyCache != nil {
+		a.keyCache.Wait()
+	}
+
+	// processor: дописывает и подтверждает текущую пачку
+	if a.processor != nil {
+		a.processor.Wait()
+	}
 }
 
 func (a *App) Exit() {
@@ -257,6 +376,8 @@ func (a *App) Exit() {
 	if a.globalTracerCloser != nil {
 		_ = a.globalTracerCloser.Close()
 	}
+
+	a.queue.Close()
 
 	_ = a.chConn.Close()
 
@@ -275,4 +396,21 @@ func errCheck(err error, msg string) {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
+}
+
+// recoverMiddleware — паника в обработчике запроса не роняет сервис
+func recoverMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				slog.Error(
+					"Recovered from panic",
+					slog.Any("error", err),
+					slog.Any("recovery_stacktrace", string(debug.Stack())),
+				)
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}()
+		h.ServeHTTP(w, r)
+	})
 }
