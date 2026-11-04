@@ -30,6 +30,7 @@ const (
 type Auth struct {
 	OrgId     int64
 	OrgSlug   string
+	OrgName   string
 	TokenId   int64
 	TokenHint string
 }
@@ -92,7 +93,7 @@ func (u *Usecase) Authorize(ctx context.Context, raw, orgSlug string) (*Auth, er
 	if orgSlug != "" && orgSlug != org.Slug {
 		return nil, errs.ErrFull{Err: errs.NoPermission, Desc: "token belongs to another organization"}
 	}
-	return &Auth{OrgId: org.Id, OrgSlug: org.Slug, TokenId: token.Id, TokenHint: token.Hint}, nil
+	return &Auth{OrgId: org.Id, OrgSlug: org.Slug, OrgName: org.Name, TokenId: token.Id, TokenHint: token.Hint}, nil
 }
 
 func (u *Usecase) ChunkOptions(auth *Auth) (*ChunkOptions, error) {
@@ -110,6 +111,11 @@ func (u *Usecase) ChunkOptions(auth *Auth) (*ChunkOptions, error) {
 		Compression:      []string{"gzip"},
 		Accept:           []string{"artifact_bundles", "artifact_bundles_v2"},
 	}, nil
+}
+
+// PublicUrl — адрес сервера для ссылок в ответах (links.regionUrl); пусто — клиент возьмёт свой
+func PublicUrl() string {
+	return strings.TrimSuffix(config.Conf.IngestPublicUrl, "/")
 }
 
 // chunkUploadUrl — абсолютный адрес при INGEST_PUBLIC_URL, иначе путь без /api/0 (его добавит sentry-cli)

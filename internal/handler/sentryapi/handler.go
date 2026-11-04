@@ -46,6 +46,7 @@ func (h *Handler) Router() http.Handler {
 	}
 
 	route("GET /api/0/{$}", "auth_info", h.authInfo)
+	route("GET /api/0/organizations/{org}/{$}", "org", h.org)
 	route("GET /api/0/organizations/{org}/chunk-upload/{$}", "chunk_options", h.chunkOptions)
 	route("POST /api/0/organizations/{org}/chunk-upload/{$}", "chunk_upload", h.chunkUpload)
 	route("POST /api/0/organizations/{org}/artifactbundle/assemble/{$}", "assemble", h.assemble)
@@ -189,6 +190,32 @@ func (h *Handler) authInfo(w http.ResponseWriter, r *http.Request) int {
 		return writeErr(w, r, err)
 	}
 	return writeJson(w, http.StatusOK, authInfoRep{Auth: authDetailsRep{Scopes: []string{"org:ci", "project:releases"}}})
+}
+
+type orgRep struct {
+	Id       string      `json:"id"`
+	Slug     string      `json:"slug"`
+	Name     string      `json:"name"`
+	Features []string    `json:"features"`
+	Links    *orgLinkRep `json:"links,omitempty"`
+}
+
+type orgLinkRep struct {
+	OrganizationUrl string `json:"organizationUrl"`
+	RegionUrl       string `json:"regionUrl"`
+}
+
+// org — новый JS-клиент Sentry (пакет sentry, им пользуется @sentry/vite-plugin) узнаёт тут адрес региона
+func (h *Handler) org(w http.ResponseWriter, r *http.Request) int {
+	auth, err := h.auth(r)
+	if err != nil {
+		return writeErr(w, r, err)
+	}
+	rep := orgRep{Id: strconv.FormatInt(auth.OrgId, 10), Slug: auth.OrgSlug, Name: lo.Ternary(auth.OrgName != "", auth.OrgName, auth.OrgSlug), Features: []string{}}
+	if u := usecase.PublicUrl(); u != "" {
+		rep.Links = &orgLinkRep{OrganizationUrl: u, RegionUrl: u}
+	}
+	return writeJson(w, http.StatusOK, rep)
 }
 
 type chunkOptionsRep struct {
