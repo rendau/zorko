@@ -24,6 +24,9 @@ var Conf = struct {
 	KafkaBrokers       []string `env:"KAFKA_BROKERS" envSeparator:","`
 	KafkaTopicEvents   string   `env:"KAFKA_TOPIC_EVENTS" envDefault:"zorko.events"`
 	KafkaConsumerGroup string   `env:"KAFKA_CONSUMER_GROUP" envDefault:"zorko-processor"`
+	// тема создаётся при старте, если её нет: разделов — потолок числа копий обработки
+	KafkaTopicPartitions int32         `env:"KAFKA_TOPIC_PARTITIONS" envDefault:"12"`
+	KafkaTopicRetention  time.Duration `env:"KAFKA_TOPIC_RETENTION" envDefault:"24h"`
 
 	IngestEnabled       bool   `env:"INGEST_ENABLED" envDefault:"true"`
 	IngestPort          string `env:"INGEST_PORT" envDefault:"8000"`

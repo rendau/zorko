@@ -5,8 +5,10 @@ go 1.27
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.50.0
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/andybalholm/brotli v1.2.7
 	github.com/caarlos0/env/v9 v9.0.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/jackc/pgx/v5 v5.9.2
@@ -18,7 +20,10 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
+	github.com/twmb/franz-go v1.22.2
+	github.com/twmb/franz-go/pkg/kadm v1.19.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
+	golang.org/x/time v0.12.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260420184626-e10c466a9529
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
@@ -27,12 +32,10 @@ require (
 require (
 	github.com/ClickHouse/ch-go v0.74.0 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
-	github.com/andybalholm/brotli v1.2.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -49,6 +52,7 @@ require (
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/shopspring/decimal v1.5.0 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.15.0 // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect

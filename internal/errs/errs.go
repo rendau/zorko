@@ -27,6 +27,9 @@ const (
 	SlugExists      = Err("slug_exists")
 	OrgNotFound     = Err("org_not_found")
 	ProjectNotFound = Err("project_not_found")
+
+	IngestKeyInvalid   = Err("ingest_key_invalid")
+	IngestOriginDenied = Err("ingest_origin_denied")
 )
 
 type ErrFull struct {
