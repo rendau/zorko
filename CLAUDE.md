@@ -262,5 +262,8 @@ CH_DSN=clickhouse://zorko:zorko@localhost:19000/zorko
 KAFKA_BROKERS=localhost:19092
 ```
 
-Порты сервиса на стенде: gRPC `5050`, HTTP-шлюз `9090`, приём `8000`, системный `3003`.
+Порты сервиса на стенде: gRPC `5050`, HTTP-шлюз `9090`, приём `8000`, интерфейс `8001`, системный `3003`.
+Для интерфейса на стенде: `make build-admin`, затем `ADMIN_API_BASE_URL=http://localhost:9090 HTTP_CORS=true`
+(интерфейс и API на разных портах). Тестовые люди стенда: `admin` / `admin-pass-1` (админ),
+`oleg` / `oleg-pass-1` (участник) — создаются вручную на `/setup` и в «Людях», в базу не зашиты.
 Интеграционные тесты (`-tags integration`) ходят на эти адреса.

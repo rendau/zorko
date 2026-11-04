@@ -161,7 +161,7 @@ const searchScope = computed(() => ({
             <UBadge v-if="issue.issue.platform" color="neutral" variant="outline" size="sm">{{ issue.issue.platform }}</UBadge>
           </div>
           <h1 class="break-words text-lg font-semibold text-highlighted">
-            {{ issue.issue.type || issue.issue.title }}<span v-if="issue.issue.type && issue.issue.value" class="font-normal text-default"> {{ issue.issue.value }}</span>
+            {{ issue.issue.type || issue.issue.title }}<span v-if="issue.issue.type && issue.issue.value" class="ms-2 font-normal text-default">{{ issue.issue.value }}</span>
           </h1>
           <p v-if="issue.issue.culprit" class="break-all font-mono text-sm text-muted">{{ issue.issue.culprit }}</p>
         </header>

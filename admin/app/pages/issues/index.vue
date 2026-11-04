@@ -75,7 +75,15 @@ watch(() => [org.currentId.value, filters.period], async () => {
 }, { immediate: true })
 
 const projectItems = computed(() => org.projects.value.map(p => ({ label: p.name || p.slug, value: p.id })))
-const envItems = computed(() => [{ label: t('issues.filter.allEnvironments'), value: '' }, ...environments.value.map(e => ({ label: e, value: e }))])
+// у пункта выбора не может быть пустого значения — «все окружения» помечены служебным
+const ALL_ENVIRONMENTS = '__all'
+const envModel = computed({
+  get: () => filters.env || ALL_ENVIRONMENTS,
+  set: (v: string) => {
+    filters.env = v === ALL_ENVIRONMENTS ? '' : v
+  },
+})
+const envItems = computed(() => [{ label: t('issues.filter.allEnvironments'), value: ALL_ENVIRONMENTS }, ...environments.value.map(e => ({ label: e, value: e }))])
 const periodItems = computed(() => (['1h', '24h', '7d', '14d', '30d'] as Period[]).map(p => ({ label: t(`period.${p}`), value: p as string })))
 const sortItems = computed(() => (['last_seen', 'first_seen', 'events', 'users'] as IssueSort[]).map(s => ({ label: t(`issues.sort.${s}`), value: s as string })))
 
@@ -113,7 +121,7 @@ const page = computed({
             :placeholder="t('issues.filter.allProjects')"
             class="w-52"
           />
-          <USelect v-model="filters.env" :items="envItems" icon="i-lucide-server" class="w-44" />
+          <USelect v-model="envModel" :items="envItems" icon="i-lucide-server" class="w-52" />
           <USelect v-model="filters.period" :items="periodItems" icon="i-lucide-calendar-clock" class="w-40" />
           <USelect v-model="filters.sort" :items="sortItems" icon="i-lucide-arrow-down-wide-narrow" class="w-48" />
           <UButton v-if="dirty" color="neutral" variant="link" :label="t('common.reset')" @click="reset" />
@@ -161,7 +169,7 @@ const page = computed({
                 <div class="min-w-0">
                   <div class="truncate text-sm">
                     <span class="font-semibold text-highlighted">{{ item.issue.type || item.issue.title }}</span>
-                    <span v-if="item.issue.type && item.issue.value" class="text-default"> {{ item.issue.value }}</span>
+                    <span v-if="item.issue.type && item.issue.value" class="ms-1.5 text-default">{{ item.issue.value }}</span>
                   </div>
                   <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                     <span v-if="item.issue.culprit" class="truncate font-mono">{{ item.issue.culprit }}</span>

@@ -12,18 +12,16 @@ Redpanda (очередь между приёмом и обработкой).
 | Порт | Что |
 |---|---|
 | `INGEST_PORT` (8000) | приём SDK: `POST /api/{project_id}/envelope/`, `/store/` — публичный, свой домен |
-| `HTTP_PORT` | админский API (HTTP-шлюз): `/org`, `/project`, `/project_key` — **без входа, наружу не открывать** |
+| `HTTP_PORT` | API интерфейса (HTTP-шлюз): вход (`/usr/login`), проблемы, события, проекты, люди — с JWT |
+| `ADMIN_PORT` (8001) | интерфейс (SPA из `admin-ui`, `make build-admin`) |
 | `GRPC_PORT` (5050) | админский API (gRPC) |
 | 3003 | `/healthcheck`, `/metrics`, `/docs/*` |
 
 ## Подключить проект
 
-```bash
-curl -XPOST $ADMIN/org -d '{"slug":"mechta","name":"Мечта"}'
-curl -XPOST $ADMIN/project -d '{"org_id":"1","slug":"mechta-site","platform":"vue"}'
-curl -XPOST $ADMIN/project_key -d '{"project_id":"1","label":"prod","allowed_origin":{"values":["*.mechta.kz"]}}'
-curl "$ADMIN/project_key?list_params.page_size=10&project_id=1"   # поле dsn
-```
+1. Откройте интерфейс: при первом запуске он попросит создать администратора.
+2. «Проекты» → новая организация → новый проект → новый ключ.
+3. На странице проекта — DSN и готовый код подключения для Vue, React, браузера, Flutter, React Native.
 
 ```js
 Sentry.init({ dsn: '<dsn из zorko>', release: 'shop@1.4.2', environment: 'production' })
