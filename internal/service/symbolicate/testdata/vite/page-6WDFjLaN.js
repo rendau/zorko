@@ -1,0 +1,1 @@
+import{n as e,t}from"./index-CC8DwTDE.js";var n=new t([{code:`SALE`,minTotal:1e3,discount:10}]);function r(){let t=new URL(`cart`,``+import.meta.url);return e(n.applyCode({total:t.href.length},`NOPE`))}export{r as default};

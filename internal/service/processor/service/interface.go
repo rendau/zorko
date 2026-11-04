@@ -18,6 +18,10 @@ type normalizerI interface {
 	Normalize(raw *eventModel.RawEvent) (*eventModel.Event, error)
 }
 
+type symbolicatorI interface {
+	Symbolicate(ctx context.Context, events []*eventModel.Event)
+}
+
 type grouperI interface {
 	Group(ev *eventModel.Event) eventModel.Grouping
 }

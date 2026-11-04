@@ -35,8 +35,9 @@ const (
 	resultBadMessage     = "bad_message"
 	resultProjectDeleted = "project_deleted"
 
-	stageNormalize = "normalize"
-	stagePg        = "pg"
-	stageCh        = "ch"
-	stageCommit    = "commit"
+	stageNormalize   = "normalize"
+	stageSymbolicate = "symbolicate"
+	stagePg          = "pg"
+	stageCh          = "ch"
+	stageCommit      = "commit"
 )

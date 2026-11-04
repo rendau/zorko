@@ -17,6 +17,7 @@ type EventRep struct {
 	Level       string            `json:"level"`
 	Platform    string            `json:"platform"`
 	Release     string            `json:"release"`
+	Dist        string            `json:"dist"`
 	Environment string            `json:"environment"`
 	Transaction string            `json:"transaction"`
 	ServerName  string            `json:"server_name"`
@@ -29,6 +30,18 @@ type EventRep struct {
 	Request     *RequestRep       `json:"request"`
 	Contexts    ContextsRep       `json:"contexts"`
 	Sdk         *SdkRep           `json:"sdk"`
+	DebugMeta   *DebugMetaRep     `json:"debug_meta"`
+}
+
+// DebugMetaRep — метки сжатых файлов (images type=sourcemap: code_file + debug_id)
+type DebugMetaRep struct {
+	Images []DebugImageRep `json:"images"`
+}
+
+type DebugImageRep struct {
+	Type     string `json:"type"`
+	CodeFile string `json:"code_file"`
+	DebugId  string `json:"debug_id"`
 }
 
 // Timestamp — секунды с дробной частью или строка RFC 3339

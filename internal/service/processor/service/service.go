@@ -29,6 +29,7 @@ type Service struct {
 	conf         Config
 	queue        queueI
 	normalizer   normalizerI
+	symbolicator symbolicatorI // nil — карты исходников выключены
 	grouper      grouperI
 	issueService issueServiceI
 	eventService eventServiceI
@@ -36,11 +37,13 @@ type Service struct {
 	wg sync.WaitGroup
 }
 
-func New(conf Config, queue queueI, normalizer normalizerI, grouper grouperI, issueService issueServiceI, eventService eventServiceI) *Service {
+func New(conf Config, queue queueI, normalizer normalizerI, symbolicator symbolicatorI, grouper grouperI,
+	issueService issueServiceI, eventService eventServiceI) *Service {
 	return &Service{
 		conf:         conf,
 		queue:        queue,
 		normalizer:   normalizer,
+		symbolicator: symbolicator,
 		grouper:      grouper,
 		issueService: issueService,
 		eventService: eventService,
@@ -89,6 +92,17 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 	metricBatchDuration.WithLabelValues(stageNormalize).Observe(time.Since(start).Seconds())
 	if len(events) == 0 {
 		return true
+	}
+
+	// перевод стека по картам — до отпечатка: склейка идёт по исходным именам (ADR-008).
+	// Не обязателен: при сбое кадры остаются как есть, пачка идёт дальше.
+	if s.symbolicator != nil {
+		start = time.Now()
+		s.symbolicator.Symbolicate(context.WithoutCancel(ctx), events)
+		metricBatchDuration.WithLabelValues(stageSymbolicate).Observe(time.Since(start).Seconds())
+	}
+	for _, ev := range events {
+		ev.Grouping = s.grouper.Group(ev)
 	}
 
 	// одинаковые отпечатки пачки → одна прибавка к проблеме
@@ -173,7 +187,6 @@ func (s *Service) normalizeBatch(batch []*queueModel.Event) []*eventModel.Event 
 			continue
 		}
 
-		ev.Grouping = s.grouper.Group(ev)
 		events = append(events, ev)
 	}
 	return events

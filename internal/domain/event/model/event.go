@@ -13,6 +13,7 @@ type Event struct {
 	Level       string
 	Platform    string
 	Release     string
+	Dist        string
 	Environment string
 	Transaction string
 	ServerName  string
@@ -39,6 +40,9 @@ type Event struct {
 	SdkVersion string
 
 	Tags map[string]string
+
+	// DebugImages — метки сжатых файлов из debug_meta (code_file → debug_id), для карт исходников
+	DebugImages map[string]string
 
 	// Data — всё событие JSON-ом после вычистки (хранится в ClickHouse как есть)
 	Data []byte

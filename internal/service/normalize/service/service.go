@@ -63,6 +63,7 @@ func (s *Service) Normalize(raw *eventModel.RawEvent) (*eventModel.Event, error)
 		Level:       lo.CoalesceOrEmpty(strings.ToLower(rep.Level), "error"),
 		Platform:    lo.CoalesceOrEmpty(rep.Platform, "other"),
 		Release:     rep.Release,
+		Dist:        rep.Dist,
 		Environment: lo.CoalesceOrEmpty(rep.Environment, "production"),
 		Transaction: rep.Transaction,
 		ServerName:  rep.ServerName,
@@ -123,6 +124,17 @@ func (s *Service) Normalize(raw *eventModel.RawEvent) (*eventModel.Event, error)
 	}
 
 	ev.Tags = buildTags(ev, rep.Tags)
+
+	if rep.DebugMeta != nil {
+		for _, img := range rep.DebugMeta.Images {
+			if img.Type == "sourcemap" && img.CodeFile != "" && img.DebugId != "" {
+				if ev.DebugImages == nil {
+					ev.DebugImages = make(map[string]string, len(rep.DebugMeta.Images))
+				}
+				ev.DebugImages[img.CodeFile] = img.DebugId
+			}
+		}
+	}
 
 	return ev, nil
 }

@@ -55,6 +55,8 @@ import (
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
 	serviceRatelimitServiceP "github.com/rendau/zorko/internal/service/ratelimit/service"
 	serviceSearchqueryServiceP "github.com/rendau/zorko/internal/service/searchquery/service"
+	serviceSymbolicateP "github.com/rendau/zorko/internal/service/symbolicate"
+	serviceSymbolicateServiceP "github.com/rendau/zorko/internal/service/symbolicate/service"
 	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
 	usecaseIssueP "github.com/rendau/zorko/internal/usecase/issue"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
@@ -73,9 +75,10 @@ type App struct {
 	chConn driver.Conn
 	queue  *serviceQueueServiceP.Service
 
-	keyCache  *serviceKeycacheServiceP.Service
-	assembler *serviceAssembleServiceP.Service
-	processor *serviceProcessorServiceP.Service
+	keyCache     *serviceKeycacheServiceP.Service
+	assembler    *serviceAssembleServiceP.Service
+	symbolicator *serviceSymbolicateServiceP.Service
+	processor    *serviceProcessorServiceP.Service
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
@@ -245,13 +248,22 @@ func (a *App) Init() {
 		eventRepo := domainEventRepoChP.New(a.chConn)
 		eventService := domainEventServiceP.New(eventRepo)
 
+		// перевод стека по картам (ADR-008); без S3 — выключен
+		var symbolicator serviceSymbolicateP.Symbolicator
+		if artifactService != nil {
+			a.symbolicator = serviceSymbolicateServiceP.New(serviceSymbolicateServiceP.Config{
+				CacheBytes: int64(config.Conf.SourcemapCacheMb) << 20,
+			}, artifactService, nil)
+			symbolicator = a.symbolicator
+		}
+
 		a.processor = serviceProcessorServiceP.New(serviceProcessorServiceP.Config{
 			BatchSize:      config.Conf.ProcessorBatchSize,
 			StorePerMinute: int64(config.Conf.IssueEventStorePerMinute),
 			RetryMin:       time.Second,
 			RetryMax:       30 * time.Second,
 			StageTimeout:   30 * time.Second,
-		}, a.queue, serviceNormalizeServiceP.New(), serviceGroupingServiceP.New(), issueService, eventService)
+		}, a.queue, serviceNormalizeServiceP.New(), symbolicator, serviceGroupingServiceP.New(), issueService, eventService)
 	}
 
 	// issue, event, tag (чтение для интерфейса)
@@ -364,6 +376,11 @@ func (a *App) Start() {
 	// assembler (сборка архивов карт)
 	if a.assembler != nil {
 		a.assembler.Start(a.ctx)
+	}
+
+	// symbolicator (отметка «пригодился» для карт)
+	if a.symbolicator != nil {
+		a.symbolicator.Start(a.ctx)
 	}
 
 	// processor
@@ -490,6 +507,11 @@ func (a *App) WaitJobs() {
 	// assembler: текущие сборки отменены контекстом и записывают своё состояние
 	if a.assembler != nil {
 		a.assembler.Wait()
+	}
+
+	// symbolicator: последняя отметка «пригодился» (метки последней пачки могут не попасть — отметка часовая)
+	if a.symbolicator != nil {
+		a.symbolicator.Wait()
 	}
 
 	// processor: дописывает и подтверждает текущую пачку
