@@ -99,7 +99,20 @@ func serveAdminFile(w http.ResponseWriter, r *http.Request, path string) {
 		}
 	}
 
-	http.ServeFile(w, r, path)
+	// не http.ServeFile: тот перенаправляет /index.html на /
+	f, err := os.Open(path)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeContent(w, r, path, stat.ModTime(), f)
 }
 
 // serveEncodedFile отдаёт enc-копию файла, если она есть. Content-Type и Last-Modified — от
