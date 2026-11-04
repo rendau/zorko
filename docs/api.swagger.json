@@ -1,10 +1,13 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "zorko_v1/event.proto",
+    "title": "zorko_v1/artifact_bundle.proto",
     "version": "version not set"
   },
   "tags": [
+    {
+      "name": "ArtifactBundleService"
+    },
     {
       "name": "EventService"
     },
@@ -24,6 +27,9 @@
       "name": "ProjectKeyService"
     },
     {
+      "name": "SiteFetchService"
+    },
+    {
       "name": "TagService"
     },
     {
@@ -37,6 +43,150 @@
     "application/json"
   ],
   "paths": {
+    "/artifact_bundle": {
+      "get": {
+        "operationId": "ArtifactBundleService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ArtifactBundleListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "list_params.page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page_size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.with_total_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.only_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.sort_name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "list_params.sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "q",
+            "description": "подстрока релиза, метка или отпечаток архива целиком",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ArtifactBundleService"
+        ]
+      }
+    },
+    "/artifact_bundle/{id}": {
+      "delete": {
+        "summary": "Delete — только админ; архив удаляется для всех проектов, к которым относится",
+        "operationId": "ArtifactBundleService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ArtifactBundleService"
+        ]
+      }
+    },
+    "/artifact_bundle/{id}/file": {
+      "get": {
+        "operationId": "ArtifactBundleService_ListFiles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ArtifactBundleFileListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ArtifactBundleService"
+        ]
+      }
+    },
     "/event": {
       "get": {
         "operationId": "EventService_List",
@@ -1165,6 +1315,44 @@
         ]
       }
     },
+    "/site_fetch": {
+      "get": {
+        "operationId": "SiteFetchService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1SiteFetchListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "state",
+            "description": "пусто — все; error — только неудачи",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SiteFetchService"
+        ]
+      }
+    },
     "/tag/key": {
       "get": {
         "operationId": "TagService_Keys",
@@ -1700,6 +1888,97 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
+        }
+      }
+    },
+    "zorko_v1ArtifactBundleFile": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "title": "minified_source | source_map | source"
+        },
+        "debug_id": {
+          "type": "string"
+        },
+        "sourcemap": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "zorko_v1ArtifactBundleFileListRep": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1ArtifactBundleFile"
+          }
+        }
+      }
+    },
+    "zorko_v1ArtifactBundleListRep": {
+      "type": "object",
+      "properties": {
+        "pagination_info": {
+          "$ref": "#/definitions/commonPaginationInfoSt"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1ArtifactBundleMain"
+          }
+        }
+      }
+    },
+    "zorko_v1ArtifactBundleMain": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string",
+          "title": "upload — из CI, site — скачано с сайта"
+        },
+        "state": {
+          "type": "string",
+          "title": "assembling | ok | error"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        },
+        "dist": {
+          "type": "string"
+        },
+        "file_count": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "last_used_at": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
@@ -2334,6 +2613,38 @@
         "site_fetch_interval_min": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "zorko_v1SiteFetchListRep": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1SiteFetchMain"
+          }
+        }
+      }
+    },
+    "zorko_v1SiteFetchMain": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "title": "ok | error"
+        },
+        "detail": {
+          "type": "string",
+          "title": "код причины: site_http_404, site_no_sourcemap_url…"
+        },
+        "fetched_at": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },

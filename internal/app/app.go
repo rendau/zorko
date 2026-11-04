@@ -59,6 +59,7 @@ import (
 	serviceSitefetchServiceP "github.com/rendau/zorko/internal/service/sitefetch/service"
 	serviceSymbolicateP "github.com/rendau/zorko/internal/service/symbolicate"
 	serviceSymbolicateServiceP "github.com/rendau/zorko/internal/service/symbolicate/service"
+	usecaseArtifactP "github.com/rendau/zorko/internal/usecase/artifact"
 	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
 	usecaseIssueP "github.com/rendau/zorko/internal/usecase/issue"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
@@ -188,6 +189,15 @@ func (a *App) Init() {
 	orgTokenUsecase := usecaseOrgTokenP.New(orgTokenService, orgService, sessionService)
 	orgTokenHandler := handlerGrpcP.NewOrgToken(orgTokenUsecase)
 
+	// artifact (карты для интерфейса); без S3 ручки отвечают пустыми списками
+	var artifactBundleHandler *handlerGrpcP.ArtifactBundle
+	var siteFetchHandler *handlerGrpcP.SiteFetch
+	{
+		artifactUsecase := usecaseArtifactP.New(domainArtifactServiceP.New(domainArtifactRepoDbP.New(a.pgpool), nil), sessionService)
+		artifactBundleHandler = handlerGrpcP.NewArtifactBundle(artifactUsecase)
+		siteFetchHandler = handlerGrpcP.NewSiteFetch(artifactUsecase)
+	}
+
 	// queue
 	{
 		if len(config.Conf.KafkaBrokers) == 0 && (config.Conf.IngestEnabled || config.Conf.ProcessorEnabled) {
@@ -293,6 +303,8 @@ func (a *App) Init() {
 			zorko_v1.RegisterProjectServiceServer(server, projectHandler)
 			zorko_v1.RegisterProjectKeyServiceServer(server, projectKeyHandler)
 			zorko_v1.RegisterOrgTokenServiceServer(server, orgTokenHandler)
+			zorko_v1.RegisterArtifactBundleServiceServer(server, artifactBundleHandler)
+			zorko_v1.RegisterSiteFetchServiceServer(server, siteFetchHandler)
 			zorko_v1.RegisterIssueServiceServer(server, issueHandler)
 			zorko_v1.RegisterEventServiceServer(server, eventHandler)
 			zorko_v1.RegisterTagServiceServer(server, tagHandler)
@@ -317,6 +329,8 @@ func (a *App) Init() {
 				zorko_v1.RegisterProjectServiceHandler,
 				zorko_v1.RegisterProjectKeyServiceHandler,
 				zorko_v1.RegisterOrgTokenServiceHandler,
+				zorko_v1.RegisterArtifactBundleServiceHandler,
+				zorko_v1.RegisterSiteFetchServiceHandler,
 				zorko_v1.RegisterIssueServiceHandler,
 				zorko_v1.RegisterEventServiceHandler,
 				zorko_v1.RegisterTagServiceHandler,

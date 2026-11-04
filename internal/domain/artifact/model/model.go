@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	commonModel "github.com/rendau/zorko/internal/domain/common/model"
+)
 
 // Архив карт (artifact bundle): залитый из CI или скачанный с сайта (ADR-009, ADR-010)
 const (
@@ -58,10 +62,10 @@ type NewBundle struct {
 
 // BundleListReq — список архивов проекта
 type BundleListReq struct {
+	commonModel.ListParams
+
 	ProjectId int64
 	Query     string // подстрока релиза или метка целиком
-	Page      int64
-	PageSize  int64
 }
 
 type SiteFetch struct {

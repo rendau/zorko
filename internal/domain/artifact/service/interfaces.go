@@ -25,6 +25,10 @@ type RepoDbI interface {
 	SaveSiteFetch(ctx context.Context, m *model.SiteFetch) error
 	ListSiteFetch(ctx context.Context, projectId int64, state string, limit int) ([]*model.SiteFetch, error)
 
+	ListBundles(ctx context.Context, pars *model.BundleListReq) ([]*model.Bundle, int64, error)
+	BundleProjectIds(ctx context.Context, bundleId int64) ([]int64, error)
+	DeleteBundle(ctx context.Context, id int64) error
+
 	TryLock(ctx context.Context, key int64) (func(), bool, error)
 	TouchBlob(ctx context.Context, sha1 string, size int64) error
 	DeleteStaleBundles(ctx context.Context, retention time.Duration, limit int) (int64, error)

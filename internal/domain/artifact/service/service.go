@@ -361,3 +361,28 @@ func (s *Service) DeleteOldSiteFetch(ctx context.Context, olderThan time.Duratio
 	}
 	return n, nil
 }
+
+// для интерфейса
+
+func (s *Service) ListBundles(ctx context.Context, pars *model.BundleListReq) ([]*model.Bundle, int64, error) {
+	items, total, err := s.repoDb.ListBundles(ctx, pars)
+	if err != nil {
+		return nil, 0, fmt.Errorf("repoDb.ListBundles: %w", err)
+	}
+	return items, total, nil
+}
+
+func (s *Service) BundleProjectIds(ctx context.Context, bundleId int64) ([]int64, error) {
+	ids, err := s.repoDb.BundleProjectIds(ctx, bundleId)
+	if err != nil {
+		return nil, fmt.Errorf("repoDb.BundleProjectIds: %w", err)
+	}
+	return ids, nil
+}
+
+func (s *Service) DeleteBundle(ctx context.Context, id int64) error {
+	if err := s.repoDb.DeleteBundle(ctx, id); err != nil {
+		return fmt.Errorf("repoDb.DeleteBundle: %w", err)
+	}
+	return nil
+}
