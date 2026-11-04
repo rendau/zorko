@@ -1,8 +1,7 @@
 # Handoff
 
-**От:** CTO + PM (`sourcemaps`, стратегия) → **к:** Architect + Staff Engineer
+**От:** Architect + Staff Engineer (`sourcemaps`, дизайн) → **к:** EM + Senior Engineer
 
-- Спека одобрена: `specs/2026-11-04-sourcemaps-design.md`.
-- Стратегия: `decisions/cto/sourcemaps.md`, требования — `decisions/product-manager/sourcemaps.md`.
-- Дальше: ADR на перевод при приёме, хранение и токены, карты с сайта, имена функций.
-- Деплой шагов 1–2 отложен пользователем («деплой позже»).
+- ADR-008 (перевод при приёме), 009 (приём/S3/токены), 010 (сайт), 011 (имена функций).
+- Компоненты — `decisions/architect/sourcemaps.md`, библиотеки — `decisions/staff-engineer/sourcemaps.md`.
+- Главный риск — имена функций (goja на сжатом JS Vite): проверить первым в M5.
