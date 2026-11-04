@@ -254,12 +254,18 @@ make generate-proto  →  gofmt  →  go test ./...  →  go run ./cmd/.
 | Postgres 17 | `zorko-pg` | `54330` | `zorko` / `zorko` / `zorko` |
 | ClickHouse 25.8 | `zorko-ch` | `19000` (native), `18123` (http) | `zorko` / `zorko` / `zorko` |
 | Redpanda v25.2.1 | `zorko-redpanda` | `19092` (Kafka) | — |
+| MinIO (S3, `cgr.dev/chainguard/minio`) | `zorko-minio` | `19100` (S3 API), `19101` (консоль) | `zorko` / `zorko-secret`, бакет `zorko` |
 
 DSN для `.env`:
 ```
 PG_DSN=postgres://zorko:zorko@localhost:54330/zorko?sslmode=disable
 CH_DSN=clickhouse://zorko:zorko@localhost:19000/zorko
 KAFKA_BROKERS=localhost:19092
+S3_ENDPOINT=localhost:19100
+S3_SECURE=false
+S3_BUCKET=zorko
+S3_ACCESS_KEY=zorko
+S3_SECRET_KEY=zorko-secret
 ```
 
 Порты сервиса на стенде: gRPC `5050`, HTTP-шлюз `9090`, приём `8000`, интерфейс `8001`, системный `3003`.

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/rendau/zorko/internal/infra/chmigrate"
+	"github.com/rendau/zorko/internal/infra/s3"
 )
 
 // адреса стенда — CLAUDE.md, «Тестовый стенд»
@@ -27,6 +28,24 @@ const (
 	ChDsn        = "clickhouse://zorko:zorko@localhost:19000/zorko"
 	KafkaBrokers = "localhost:19092"
 )
+
+// S3Conf — MinIO стенда
+var S3Conf = s3.Config{
+	Endpoint:  "localhost:19100",
+	Region:    "us-east-1",
+	Bucket:    "zorko",
+	AccessKey: "zorko",
+	SecretKey: "zorko-secret",
+}
+
+// S3 — клиент MinIO стенда с созданным бакетом
+func S3(t *testing.T) *s3.Client {
+	t.Helper()
+	c, err := s3.New(S3Conf)
+	require.NoError(t, err)
+	require.NoError(t, c.EnsureBucket(context.Background()))
+	return c
+}
 
 // RepoRoot — корень репозитория (каталог с go.mod)
 func RepoRoot(t *testing.T) string {

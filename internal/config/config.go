@@ -47,6 +47,23 @@ var Conf = struct {
 	ProcessorBatchWait time.Duration `env:"PROCESSOR_BATCH_WAIT" envDefault:"1s"`
 
 	IssueEventStorePerMinute int `env:"ISSUE_EVENT_STORE_PER_MINUTE" envDefault:"100"`
+
+	// карты исходников (шаг 3, ADR-008..011); без S3_ENDPOINT — выключены
+	S3Endpoint  string `env:"S3_ENDPOINT"`
+	S3Region    string `env:"S3_REGION" envDefault:"us-east-1"`
+	S3Bucket    string `env:"S3_BUCKET" envDefault:"zorko"`
+	S3AccessKey string `env:"S3_ACCESS_KEY"`
+	S3SecretKey string `env:"S3_SECRET_KEY"`
+	S3Secure    bool   `env:"S3_SECURE" envDefault:"true"`
+
+	// разобранные карты в памяти обработчика, МБ
+	SourcemapCacheMb int `env:"SOURCEMAP_CACHE_MB" envDefault:"256"`
+	// архив удаляется, если столько времени не пригодился ни одной ошибке
+	SourcemapRetention time.Duration `env:"SOURCEMAP_RETENTION" envDefault:"720h"`
+	// временные файлы сборки архивов; пусто — системный tmp
+	AssembleTmpDir string `env:"ASSEMBLE_TMP_DIR"`
+	// одновременных запросов к сайтам за картами на копию обработчика
+	SiteFetchConcurrency int `env:"SITE_FETCH_CONCURRENCY" envDefault:"4"`
 }{}
 
 func init() {

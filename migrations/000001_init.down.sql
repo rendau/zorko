@@ -1,3 +1,11 @@
+drop table if exists site_fetch cascade;
+drop table if exists release_project cascade;
+drop table if exists release cascade;
+drop table if exists artifact_file cascade;
+drop table if exists blob cascade;
+drop table if exists artifact_bundle_project cascade;
+drop table if exists artifact_bundle cascade;
+drop table if exists org_token cascade;
 drop table if exists issue_hash cascade;
 drop table if exists issue cascade;
 drop table if exists project_key cascade;
