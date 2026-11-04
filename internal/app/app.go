@@ -21,6 +21,9 @@ import (
 
 	"github.com/rendau/zorko/internal/config"
 	"github.com/rendau/zorko/internal/constant"
+	domainArtifactRepoBlobP "github.com/rendau/zorko/internal/domain/artifact/repo/blob"
+	domainArtifactRepoDbP "github.com/rendau/zorko/internal/domain/artifact/repo/db"
+	domainArtifactServiceP "github.com/rendau/zorko/internal/domain/artifact/service"
 	domainEventRepoChP "github.com/rendau/zorko/internal/domain/event/repo/ch"
 	domainEventServiceP "github.com/rendau/zorko/internal/domain/event/service"
 	domainIssueRepoDbP "github.com/rendau/zorko/internal/domain/issue/repo/db"
@@ -33,12 +36,17 @@ import (
 	domainProjectServiceP "github.com/rendau/zorko/internal/domain/project/service"
 	domainProjectKeyRepoDbP "github.com/rendau/zorko/internal/domain/project_key/repo/db"
 	domainProjectKeyServiceP "github.com/rendau/zorko/internal/domain/project_key/service"
+	domainReleaseRepoDbP "github.com/rendau/zorko/internal/domain/release/repo/db"
+	domainReleaseServiceP "github.com/rendau/zorko/internal/domain/release/service"
 	domainSessionServiceP "github.com/rendau/zorko/internal/domain/session/service"
 	domainUsrRepoDbP "github.com/rendau/zorko/internal/domain/usr/repo/db"
 	domainUsrServiceP "github.com/rendau/zorko/internal/domain/usr/service"
 	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
 	handlerIngestP "github.com/rendau/zorko/internal/handler/ingest"
+	handlerSentryapiP "github.com/rendau/zorko/internal/handler/sentryapi"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
+	infraS3P "github.com/rendau/zorko/internal/infra/s3"
+	serviceAssembleServiceP "github.com/rendau/zorko/internal/service/assemble/service"
 	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
 	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
 	serviceLoginlimitServiceP "github.com/rendau/zorko/internal/service/loginlimit/service"
@@ -53,6 +61,7 @@ import (
 	usecaseOrgTokenP "github.com/rendau/zorko/internal/usecase/org_token"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
+	usecaseUploadP "github.com/rendau/zorko/internal/usecase/upload"
 	usecaseUsrP "github.com/rendau/zorko/internal/usecase/usr"
 	"github.com/rendau/zorko/pkg/proto/zorko_v1"
 )
@@ -65,6 +74,7 @@ type App struct {
 	queue  *serviceQueueServiceP.Service
 
 	keyCache  *serviceKeycacheServiceP.Service
+	assembler *serviceAssembleServiceP.Service
 	processor *serviceProcessorServiceP.Service
 
 	grpcServer       *GrpcServer
@@ -114,6 +124,26 @@ func (a *App) Init() {
 	{
 		chmigrate.Run(a.ctx, a.chConn, "./migrations-ch")
 		slog.Info("CH-migrations have been successfully applied")
+	}
+
+	// s3 + artifact (карты исходников, ADR-009); без S3_ENDPOINT — выключены
+	var artifactService *domainArtifactServiceP.Service
+	if config.Conf.S3Endpoint != "" {
+		s3Client, err := infraS3P.New(infraS3P.Config{
+			Endpoint:  config.Conf.S3Endpoint,
+			Region:    config.Conf.S3Region,
+			Bucket:    config.Conf.S3Bucket,
+			AccessKey: config.Conf.S3AccessKey,
+			SecretKey: config.Conf.S3SecretKey,
+			Secure:    config.Conf.S3Secure,
+		})
+		errCheck(err, "s3 init")
+		ctx, ctxCancel := context.WithTimeout(a.ctx, 15*time.Second)
+		errCheck(s3Client.EnsureBucket(ctx), "s3 EnsureBucket")
+		ctxCancel()
+		artifactService = domainArtifactServiceP.New(domainArtifactRepoDbP.New(a.pgpool), domainArtifactRepoBlobP.New(s3Client))
+	} else {
+		slog.Warn("S3_ENDPOINT is empty: source maps are disabled")
 	}
 
 	// session
@@ -183,9 +213,22 @@ func (a *App) Init() {
 		ingestUsecase := usecaseIngestP.New(a.keyCache, rateLimiter, a.queue)
 		ingestHandler := handlerIngestP.New(ingestUsecase, config.Conf.IngestMaxBodyBytes, config.Conf.IngestMaxEventBytes)
 
+		// Sentry API для sentry-cli: заливка карт и релизы (на том же адресе, что DSN)
+		if artifactService != nil {
+			a.assembler = serviceAssembleServiceP.New(serviceAssembleServiceP.Config{TmpDir: config.Conf.AssembleTmpDir}, artifactService)
+		}
+		releaseService := domainReleaseServiceP.New(domainReleaseRepoDbP.New(a.pgpool))
+		uploadUsecase := usecaseUploadP.New(artifactService != nil, orgTokenService, orgService, projectService,
+			artifactService, a.assembler, releaseService)
+		sentryapiHandler := handlerSentryapiP.New(uploadUsecase)
+
+		ingestMux := http.NewServeMux()
+		ingestMux.Handle("/api/0/", sentryapiHandler.Router())
+		ingestMux.Handle("/", ingestHandler.Router())
+
 		a.ingestHttpServer = &http.Server{
 			Addr:              ":" + config.Conf.IngestPort,
-			Handler:           recoverMiddleware(ingestHandler.Router()),
+			Handler:           recoverMiddleware(ingestMux),
 			ReadHeaderTimeout: 2 * time.Second,
 			ReadTimeout:       30 * time.Second,
 			WriteTimeout:      30 * time.Second,
@@ -318,6 +361,11 @@ func (a *App) Start() {
 		a.keyCache.Start(a.ctx)
 	}
 
+	// assembler (сборка архивов карт)
+	if a.assembler != nil {
+		a.assembler.Start(a.ctx)
+	}
+
 	// processor
 	if a.processor != nil {
 		a.processor.Start(a.ctx)
@@ -437,6 +485,11 @@ func (a *App) WaitJobs() {
 	// key cache
 	if a.keyCache != nil {
 		a.keyCache.Wait()
+	}
+
+	// assembler: текущие сборки отменены контекстом и записывают своё состояние
+	if a.assembler != nil {
+		a.assembler.Wait()
 	}
 
 	// processor: дописывает и подтверждает текущую пачку
