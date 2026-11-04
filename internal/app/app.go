@@ -27,6 +27,8 @@ import (
 	domainIssueServiceP "github.com/rendau/zorko/internal/domain/issue/service"
 	domainOrgRepoDbP "github.com/rendau/zorko/internal/domain/org/repo/db"
 	domainOrgServiceP "github.com/rendau/zorko/internal/domain/org/service"
+	domainOrgTokenRepoDbP "github.com/rendau/zorko/internal/domain/org_token/repo/db"
+	domainOrgTokenServiceP "github.com/rendau/zorko/internal/domain/org_token/service"
 	domainProjectRepoDbP "github.com/rendau/zorko/internal/domain/project/repo/db"
 	domainProjectServiceP "github.com/rendau/zorko/internal/domain/project/service"
 	domainProjectKeyRepoDbP "github.com/rendau/zorko/internal/domain/project_key/repo/db"
@@ -48,6 +50,7 @@ import (
 	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
 	usecaseIssueP "github.com/rendau/zorko/internal/usecase/issue"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
+	usecaseOrgTokenP "github.com/rendau/zorko/internal/usecase/org_token"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
 	usecaseUsrP "github.com/rendau/zorko/internal/usecase/usr"
@@ -143,6 +146,12 @@ func (a *App) Init() {
 	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService, sessionService)
 	projectKeyHandler := handlerGrpcP.NewProjectKey(projectKeyUsecase)
 
+	// org_token (токены CI, ADR-009)
+	orgTokenRepo := domainOrgTokenRepoDbP.New(a.pgpool)
+	orgTokenService := domainOrgTokenServiceP.New(orgTokenRepo)
+	orgTokenUsecase := usecaseOrgTokenP.New(orgTokenService, orgService, sessionService)
+	orgTokenHandler := handlerGrpcP.NewOrgToken(orgTokenUsecase)
+
 	// queue
 	{
 		if len(config.Conf.KafkaBrokers) == 0 && (config.Conf.IngestEnabled || config.Conf.ProcessorEnabled) {
@@ -217,6 +226,7 @@ func (a *App) Init() {
 			zorko_v1.RegisterOrgServiceServer(server, orgHandler)
 			zorko_v1.RegisterProjectServiceServer(server, projectHandler)
 			zorko_v1.RegisterProjectKeyServiceServer(server, projectKeyHandler)
+			zorko_v1.RegisterOrgTokenServiceServer(server, orgTokenHandler)
 			zorko_v1.RegisterIssueServiceServer(server, issueHandler)
 			zorko_v1.RegisterEventServiceServer(server, eventHandler)
 			zorko_v1.RegisterTagServiceServer(server, tagHandler)
@@ -240,6 +250,7 @@ func (a *App) Init() {
 				zorko_v1.RegisterOrgServiceHandler,
 				zorko_v1.RegisterProjectServiceHandler,
 				zorko_v1.RegisterProjectKeyServiceHandler,
+				zorko_v1.RegisterOrgTokenServiceHandler,
 				zorko_v1.RegisterIssueServiceHandler,
 				zorko_v1.RegisterEventServiceHandler,
 				zorko_v1.RegisterTagServiceHandler,

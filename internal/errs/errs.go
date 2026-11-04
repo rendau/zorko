@@ -35,6 +35,13 @@ const (
 
 	IngestKeyInvalid   = Err("ingest_key_invalid")
 	IngestOriginDenied = Err("ingest_origin_denied")
+
+	// карты исходников (шаг 3)
+	TokenInvalid       = Err("token_invalid")
+	SourcemapsDisabled = Err("sourcemaps_disabled")
+	ChunkInvalid       = Err("chunk_invalid")
+	BundleInvalid      = Err("bundle_invalid")
+	ReleaseNotFound    = Err("release_not_found")
 )
 
 type ErrFull struct {

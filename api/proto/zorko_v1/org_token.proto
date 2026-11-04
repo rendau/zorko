@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "/zorko_v1";
+
+// OrgTokenService — токены CI организации для заливки карт исходников (только админ)
+service OrgTokenService {
+  rpc List(OrgTokenListReq) returns (OrgTokenListRep) {
+    option (google.api.http) = {
+      get: "/org_token"
+    };
+  }
+
+  // Create — значение токена приходит в ответе один раз и больше нигде не показывается
+  rpc Create(OrgTokenCreateReq) returns (OrgTokenCreateRep) {
+    option (google.api.http) = {
+      post: "/org_token"
+      body: "*"
+    };
+  }
+
+  // Delete — токен перестаёт работать сразу
+  rpc Delete(OrgTokenDeleteReq) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/org_token/{id}"
+    };
+  }
+}
+
+message OrgTokenMain {
+  int64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  int64 org_id = 3;
+  string created_by_name = 4;
+  string name = 5;
+  // последние 4 символа токена
+  string hint = 6;
+  google.protobuf.Timestamp last_used_at = 7;
+}
+
+message OrgTokenListReq {
+  int64 org_id = 1;
+}
+
+message OrgTokenListRep {
+  repeated OrgTokenMain results = 1;
+}
+
+message OrgTokenCreateReq {
+  int64 org_id = 1;
+  string name = 2;
+}
+
+message OrgTokenCreateRep {
+  OrgTokenMain item = 1;
+  string token = 2;
+}
+
+message OrgTokenDeleteReq {
+  int64 id = 1;
+}
