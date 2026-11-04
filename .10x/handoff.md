@@ -1,8 +1,7 @@
 # Handoff
 
-**От:** Architect + Staff Engineer (Phase 2) → **к:** EM + Senior Engineer (Phase 3)
+**От:** EM + Senior Engineer (Phase 3) → **к:** SDE (Phase 4)
 
-- ADR-001…004 в `.10x/adrs/`.
-- Компоненты и потоки: `decisions/architect/error-ingest.md`.
-- Библиотеки и раскладка: `decisions/staff-engineer/error-ingest.md`.
-- Нужен план задач ≤ полдня каждая, в порядке зависимостей.
+- Задачи T1–T13: `decisions/engineering-manager/error-ingest.md`.
+- Подход по каждой: `decisions/senior-engineer/error-ingest.md`.
+- ADR-001…004, спека — обязательны к сверке.

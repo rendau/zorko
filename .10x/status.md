@@ -1,16 +1,22 @@
 # Статус
 
-**Фаза:** Design Complete (`error-ingest`), ADR-001…004
+**Фаза:** Planning Complete (`error-ingest`) → Phase 4 (Implementation)
 **Обновлено:** 2026-11-04
 
-## Готово
-- Каркас из gotemplate, репозиторий github.com/rendau/zorko (приватный, ветка master).
-- Discovery подтверждён.
-- Брейншторм `error-ingest`: 4 части проекта согласованы, спека
-  `.10x/specs/2026-11-04-error-ingest-design.md`.
-
-## Дальше
-- Просмотр спеки пользователем → Phase 1 (Strategy) → Phase 2 (ADR) → Phase 3 (план) → код.
+## Задачи error-ingest
+- [ ] T1 стенд в docker
+- [ ] T2 конфиг, ClickHouse, миграции CH
+- [ ] T3 миграции PG и CH
+- [ ] T4 CRUD org/project/project_key
+- [ ] T5 service/queue
+- [ ] T6 keycache, ratelimit
+- [ ] T7 handler/usecase ingest
+- [ ] T8 normalize
+- [ ] T9 grouping
+- [ ] T10 domain issue/event
+- [ ] T11 processor
+- [ ] T12 метрики
+- [ ] T13 проверка по разделу 8 спеки
 
 ## Блокеры
 - Нет.

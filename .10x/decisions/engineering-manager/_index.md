@@ -1,3 +1,5 @@
 # engineering-manager — общие решения
 
-Пока решений нет.
+
+## Активные
+- [error-ingest](error-ingest.md) — задачи T1–T13
