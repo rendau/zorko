@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "common/common.proto";
+
+option go_package = "/zorko_v1";
+
+service ProjectService {
+  rpc List(ProjectListReq) returns (ProjectListRep) {
+    option (google.api.http) = {
+      get: "/project"
+    };
+  }
+
+  rpc Get(ProjectGetReq) returns (ProjectMain) {
+    option (google.api.http) = {
+      get: "/project/{id}"
+    };
+  }
+
+  // Create возвращает id созданной записи
+  rpc Create(ProjectCreateReq) returns (ProjectCreateRep) {
+    option (google.api.http) = {
+      post: "/project"
+      body: "*"
+    };
+  }
+
+  rpc Update(ProjectUpdateReq) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/project/{id}"
+      body: "*"
+    };
+  }
+
+  // Delete удаляет проект вместе с ключами и проблемами; события в ClickHouse уходят по TTL
+  rpc Delete(ProjectGetReq) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/project/{id}"
+    };
+  }
+}
+
+message ProjectMain {
+  int64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp modified_at = 3;
+  int64 org_id = 4;
+  string slug = 5;
+  string name = 6;
+  // платформа по SDK: javascript, vue, react, flutter, react-native…
+  string platform = 7;
+}
+
+// List
+
+message ProjectListReq {
+  common.ListParamsSt list_params = 1;
+  optional int64 org_id = 2;
+  optional string slug = 3;
+  repeated int64 ids = 4;
+}
+
+message ProjectListRep {
+  common.PaginationInfoSt pagination_info = 1;
+  repeated ProjectMain results = 2;
+}
+
+// Get (и Delete)
+
+message ProjectGetReq {
+  int64 id = 1;
+}
+
+// Create
+
+message ProjectCreateReq {
+  optional int64 org_id = 1;
+  optional string slug = 2;
+  optional string name = 3;
+  optional string platform = 4;
+}
+
+message ProjectCreateRep {
+  int64 id = 1;
+}
+
+// Update — организация проекта не меняется
+
+message ProjectUpdateReq {
+  int64 id = 1;
+  optional string slug = 2;
+  optional string name = 3;
+  optional string platform = 4;
+}

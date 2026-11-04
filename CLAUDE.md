@@ -241,3 +241,26 @@ domain service → repo
 ```
 make generate-proto  →  gofmt  →  go test ./...  →  go run ./cmd/.
 ```
+
+---
+
+## Тестовый стенд
+
+Поднимается скриптом `scripts/stand.sh up` (остановка — `down`, состояние — `status`).
+Контейнеры с `--rm`: после `down` данные не сохраняются.
+
+| Что | Контейнер | Порт на хосте | Логин / пароль / БД |
+|---|---|---|---|
+| Postgres 17 | `zorko-pg` | `54330` | `zorko` / `zorko` / `zorko` |
+| ClickHouse 25.8 | `zorko-ch` | `19000` (native), `18123` (http) | `zorko` / `zorko` / `zorko` |
+| Redpanda v25.2.1 | `zorko-redpanda` | `19092` (Kafka) | — |
+
+DSN для `.env`:
+```
+PG_DSN=postgres://zorko:zorko@localhost:54330/zorko?sslmode=disable
+CH_DSN=clickhouse://zorko:zorko@localhost:19000/zorko
+KAFKA_BROKERS=localhost:19092
+```
+
+Порты сервиса на стенде: gRPC `5050`, HTTP-шлюз `9090`, приём `8000`, системный `3003`.
+Интеграционные тесты (`-tags integration`) ходят на эти адреса.

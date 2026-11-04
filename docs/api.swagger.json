@@ -1,0 +1,1034 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "zorko_v1/org.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "OrgService"
+    },
+    {
+      "name": "ProjectService"
+    },
+    {
+      "name": "ProjectKeyService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/org": {
+      "get": {
+        "operationId": "OrgService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OrgListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "list_params.page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page_size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.with_total_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.only_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.sort_name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "list_params.sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "OrgService"
+        ]
+      },
+      "post": {
+        "summary": "Create возвращает id созданной записи",
+        "operationId": "OrgService_Create",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OrgCreateRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OrgCreateReq"
+            }
+          }
+        ],
+        "tags": [
+          "OrgService"
+        ]
+      }
+    },
+    "/org/{id}": {
+      "get": {
+        "operationId": "OrgService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OrgMain"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "OrgService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete удаляет организацию вместе с её проектами, ключами и проблемами",
+        "operationId": "OrgService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "OrgService"
+        ]
+      },
+      "put": {
+        "operationId": "OrgService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OrgServiceUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "OrgService"
+        ]
+      }
+    },
+    "/project": {
+      "get": {
+        "operationId": "ProjectService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "list_params.page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page_size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.with_total_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.only_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.sort_name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "list_params.sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "ProjectService"
+        ]
+      },
+      "post": {
+        "summary": "Create возвращает id созданной записи",
+        "operationId": "ProjectService_Create",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectCreateRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectCreateReq"
+            }
+          }
+        ],
+        "tags": [
+          "ProjectService"
+        ]
+      }
+    },
+    "/project/{id}": {
+      "get": {
+        "operationId": "ProjectService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectMain"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ProjectService"
+        ]
+      },
+      "delete": {
+        "summary": "Delete удаляет проект вместе с ключами и проблемами; события в ClickHouse уходят по TTL",
+        "operationId": "ProjectService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ProjectService"
+        ]
+      },
+      "put": {
+        "operationId": "ProjectService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectServiceUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "ProjectService"
+        ]
+      }
+    },
+    "/project_key": {
+      "get": {
+        "operationId": "ProjectKeyService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectKeyListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "list_params.page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page_size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.with_total_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.only_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.sort_name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "list_params.sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "ProjectKeyService"
+        ]
+      },
+      "post": {
+        "summary": "Create генерирует public_key и возвращает id созданной записи",
+        "operationId": "ProjectKeyService_Create",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectKeyCreateRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectKeyCreateReq"
+            }
+          }
+        ],
+        "tags": [
+          "ProjectKeyService"
+        ]
+      }
+    },
+    "/project_key/{id}": {
+      "get": {
+        "operationId": "ProjectKeyService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectKeyMain"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ProjectKeyService"
+        ]
+      },
+      "delete": {
+        "operationId": "ProjectKeyService_Delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ProjectKeyService"
+        ]
+      },
+      "put": {
+        "operationId": "ProjectKeyService_Update",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ProjectKeyServiceUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "ProjectKeyService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "commonListParamsSt": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "format": "int64"
+        },
+        "page_size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "with_total_count": {
+          "type": "boolean"
+        },
+        "only_count": {
+          "type": "boolean"
+        },
+        "sort_name": {
+          "type": "string"
+        },
+        "sort": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "commonPaginationInfoSt": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string",
+          "format": "int64"
+        },
+        "page_size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "total_count": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "zorko_v1OrgCreateRep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "zorko_v1OrgCreateReq": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "zorko_v1OrgListRep": {
+      "type": "object",
+      "properties": {
+        "pagination_info": {
+          "$ref": "#/definitions/commonPaginationInfoSt"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1OrgMain"
+          }
+        }
+      }
+    },
+    "zorko_v1OrgMain": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "zorko_v1OrgServiceUpdateBody": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "zorko_v1ProjectCreateRep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "zorko_v1ProjectCreateReq": {
+      "type": "object",
+      "properties": {
+        "org_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        }
+      }
+    },
+    "zorko_v1ProjectKeyCreateRep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "zorko_v1ProjectKeyCreateReq": {
+      "type": "object",
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "label": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "rate_limit_per_sec": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "allowed_origin": {
+          "$ref": "#/definitions/zorko_v1ProjectKeyOriginList"
+        }
+      }
+    },
+    "zorko_v1ProjectKeyListRep": {
+      "type": "object",
+      "properties": {
+        "pagination_info": {
+          "$ref": "#/definitions/commonPaginationInfoSt"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1ProjectKeyMain"
+          }
+        }
+      }
+    },
+    "zorko_v1ProjectKeyMain": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "project_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "public_key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "rate_limit_per_sec": {
+          "type": "integer",
+          "format": "int32",
+          "title": "защитный предел событий в секунду на одну копию приёма; 0 — без предела"
+        },
+        "allowed_origin": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "разрешённые сайты (хосты, маски вида *.mdev.kz); пусто — любые"
+        },
+        "dsn": {
+          "type": "string",
+          "title": "адрес для SDK: \u003cсхема\u003e://\u003cpublic_key\u003e@\u003cхост приёма\u003e/\u003cproject_id\u003e"
+        }
+      }
+    },
+    "zorko_v1ProjectKeyOriginList": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "ProjectKeyOriginList — обёртка списка сайтов: не передан — список не меняется"
+    },
+    "zorko_v1ProjectKeyServiceUpdateBody": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "rate_limit_per_sec": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "allowed_origin": {
+          "$ref": "#/definitions/zorko_v1ProjectKeyOriginList"
+        }
+      }
+    },
+    "zorko_v1ProjectListRep": {
+      "type": "object",
+      "properties": {
+        "pagination_info": {
+          "$ref": "#/definitions/commonPaginationInfoSt"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1ProjectMain"
+          }
+        }
+      }
+    },
+    "zorko_v1ProjectMain": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "modified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "org_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string",
+          "title": "платформа по SDK: javascript, vue, react, flutter, react-native…"
+        }
+      }
+    },
+    "zorko_v1ProjectServiceUpdateBody": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

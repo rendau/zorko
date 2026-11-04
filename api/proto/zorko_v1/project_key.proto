@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "common/common.proto";
+
+option go_package = "/zorko_v1";
+
+// ProjectKeyService — ключи проектов (DSN), с которыми SDK Sentry шлют ошибки в zorko
+service ProjectKeyService {
+  rpc List(ProjectKeyListReq) returns (ProjectKeyListRep) {
+    option (google.api.http) = {
+      get: "/project_key"
+    };
+  }
+
+  rpc Get(ProjectKeyGetReq) returns (ProjectKeyMain) {
+    option (google.api.http) = {
+      get: "/project_key/{id}"
+    };
+  }
+
+  // Create генерирует public_key и возвращает id созданной записи
+  rpc Create(ProjectKeyCreateReq) returns (ProjectKeyCreateRep) {
+    option (google.api.http) = {
+      post: "/project_key"
+      body: "*"
+    };
+  }
+
+  rpc Update(ProjectKeyUpdateReq) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/project_key/{id}"
+      body: "*"
+    };
+  }
+
+  rpc Delete(ProjectKeyGetReq) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/project_key/{id}"
+    };
+  }
+}
+
+message ProjectKeyMain {
+  int64 id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp modified_at = 3;
+  int64 project_id = 4;
+  string public_key = 5;
+  string label = 6;
+  bool active = 7;
+  // защитный предел событий в секунду на одну копию приёма; 0 — без предела
+  int32 rate_limit_per_sec = 8;
+  // разрешённые сайты (хосты, маски вида *.mdev.kz); пусто — любые
+  repeated string allowed_origin = 9;
+  // адрес для SDK: <схема>://<public_key>@<хост приёма>/<project_id>
+  string dsn = 10;
+}
+
+// ProjectKeyOriginList — обёртка списка сайтов: не передан — список не меняется
+message ProjectKeyOriginList {
+  repeated string values = 1;
+}
+
+// List
+
+message ProjectKeyListReq {
+  common.ListParamsSt list_params = 1;
+  optional int64 project_id = 2;
+  optional bool active = 3;
+  repeated int64 ids = 4;
+}
+
+message ProjectKeyListRep {
+  common.PaginationInfoSt pagination_info = 1;
+  repeated ProjectKeyMain results = 2;
+}
+
+// Get (и Delete)
+
+message ProjectKeyGetReq {
+  int64 id = 1;
+}
+
+// Create
+
+message ProjectKeyCreateReq {
+  optional int64 project_id = 1;
+  optional string label = 2;
+  optional bool active = 3;
+  optional int32 rate_limit_per_sec = 4;
+  ProjectKeyOriginList allowed_origin = 5;
+}
+
+message ProjectKeyCreateRep {
+  int64 id = 1;
+}
+
+// Update — проект и public_key не меняются
+
+message ProjectKeyUpdateReq {
+  int64 id = 1;
+  optional string label = 2;
+  optional bool active = 3;
+  optional int32 rate_limit_per_sec = 4;
+  ProjectKeyOriginList allowed_origin = 5;
+}

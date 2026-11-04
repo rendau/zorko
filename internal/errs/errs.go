@@ -22,6 +22,13 @@ const (
 	IdRequired        = Err("id_required")
 )
 
+// zorko errors
+const (
+	SlugExists      = Err("slug_exists")
+	OrgNotFound     = Err("org_not_found")
+	ProjectNotFound = Err("project_not_found")
+)
+
 type ErrFull struct {
 	Err    error
 	Desc   string

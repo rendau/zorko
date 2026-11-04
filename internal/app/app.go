@@ -12,8 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/samber/lo"
-
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
@@ -21,12 +20,24 @@ import (
 
 	"github.com/rendau/zorko/internal/config"
 	"github.com/rendau/zorko/internal/constant"
+	domainOrgRepoDbP "github.com/rendau/zorko/internal/domain/org/repo/db"
+	domainOrgServiceP "github.com/rendau/zorko/internal/domain/org/service"
+	domainProjectRepoDbP "github.com/rendau/zorko/internal/domain/project/repo/db"
+	domainProjectServiceP "github.com/rendau/zorko/internal/domain/project/service"
+	domainProjectKeyRepoDbP "github.com/rendau/zorko/internal/domain/project_key/repo/db"
+	domainProjectKeyServiceP "github.com/rendau/zorko/internal/domain/project_key/service"
+	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
+	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
+	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
+	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
+	"github.com/rendau/zorko/pkg/proto/zorko_v1"
 )
 
 type App struct {
 	globalTracerCloser io.Closer
 
 	pgpool *pgxpool.Pool
+	chConn driver.Conn
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
@@ -65,10 +76,40 @@ func (a *App) Init() {
 		slog.Info("PG-migrations have been successfully applied")
 	}
 
+	// clickhouse
+	a.chConn, err = initChConn(config.Conf.ChDsn)
+	errCheck(err, "clickhouse init")
+
+	// ch-migrations
+	{
+		runChMigrations(a.ctx, a.chConn)
+		slog.Info("CH-migrations have been successfully applied")
+	}
+
+	// org
+	orgRepo := domainOrgRepoDbP.New(a.pgpool)
+	orgService := domainOrgServiceP.New(orgRepo)
+	orgUsecase := usecaseOrgP.New(orgService)
+	orgHandler := handlerGrpcP.NewOrg(orgUsecase)
+
+	// project
+	projectRepo := domainProjectRepoDbP.New(a.pgpool)
+	projectService := domainProjectServiceP.New(projectRepo)
+	projectUsecase := usecaseProjectP.New(projectService)
+	projectHandler := handlerGrpcP.NewProject(projectUsecase)
+
+	// project_key
+	projectKeyRepo := domainProjectKeyRepoDbP.New(a.pgpool)
+	projectKeyService := domainProjectKeyServiceP.New(projectKeyRepo)
+	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService)
+	projectKeyHandler := handlerGrpcP.NewProjectKey(projectKeyUsecase)
+
 	// grpc server
 	{
 		a.grpcServer = NewGrpcServer("main", func(server *grpc.Server) {
-			// server registers
+			zorko_v1.RegisterOrgServiceServer(server, orgHandler)
+			zorko_v1.RegisterProjectServiceServer(server, projectHandler)
+			zorko_v1.RegisterProjectKeyServiceServer(server, projectKeyHandler)
 		})
 	}
 
@@ -85,7 +126,9 @@ func (a *App) Init() {
 
 			// register grpc handlers
 			handlers := []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
-				// server registers
+				zorko_v1.RegisterOrgServiceHandler,
+				zorko_v1.RegisterProjectServiceHandler,
+				zorko_v1.RegisterProjectKeyServiceHandler,
 			}
 			for _, h := range handlers {
 				err = h(context.Background(), mux, conn)
@@ -99,14 +142,7 @@ func (a *App) Init() {
 				method  string
 				path    string
 				handler runtime.HandlerFunc
-			}{
-				{
-					"GET", "/tst",
-					func(w http.ResponseWriter, r *http.Request, _ map[string]string) {
-						slog.Info("test error", "error", errors.New("test error"))
-					},
-				},
-			}
+			}{}
 			for _, h := range httpHandlers {
 				err = mux.HandlePath(h.method, h.path, h.handler)
 				if err != nil {
@@ -220,6 +256,8 @@ func (a *App) Exit() {
 	if a.globalTracerCloser != nil {
 		_ = a.globalTracerCloser.Close()
 	}
+
+	_ = a.chConn.Close()
 
 	a.pgpool.Close()
 
