@@ -1,9 +1,8 @@
 # Handoff
 
-**От:** QA + Security (`issue-ui`) → **к:** DevOps + SRE (Phase 6) или шагу 3
+**От:** CTO + PM (`sourcemaps`, стратегия) → **к:** Architect + Staff Engineer
 
-- Шаги 1–2 построены и проверены, не задеплоены.
-- Что построено и отступления: `decisions/sde/error-ingest.md`, `decisions/sde/issue-ui.md`.
-- Для деплоя: Postgres, ClickHouse, Redpanda; env — `internal/config/config.go`, `.env.example`
-  (`JWT_SECRET` — секрет генерацией); три наружных адреса: приём (`INGEST_PORT`), API (`HTTP_PORT`,
-  `HTTP_CORS=true`), интерфейс (`ADMIN_PORT`, `ADMIN_API_BASE_URL`); образ — `make build-admin` + `make`.
+- Спека одобрена: `specs/2026-11-04-sourcemaps-design.md`.
+- Стратегия: `decisions/cto/sourcemaps.md`, требования — `decisions/product-manager/sourcemaps.md`.
+- Дальше: ADR на перевод при приёме, хранение и токены, карты с сайта, имена функций.
+- Деплой шагов 1–2 отложен пользователем («деплой позже»).

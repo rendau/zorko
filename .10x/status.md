@@ -1,7 +1,13 @@
 # Статус
 
-**Фаза:** Verification Complete (`issue-ui`) → Phase 6 (Delivery) ждёт решения о деплое
+**Фаза:** Strategy Complete (`sourcemaps`, шаг 3); деплой шагов 1–2 отложен пользователем
 **Обновлено:** 2026-11-04
+
+## sourcemaps (шаг 3)
+- [x] спека `specs/2026-11-04-sourcemaps-design.md` одобрена
+- [x] стратегия
+- [ ] дизайн (ADR 008–011)
+- [ ] план
 
 ## issue-ui (шаг 2)
 - [x] U1 вход, люди, права

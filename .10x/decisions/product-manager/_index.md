@@ -16,3 +16,4 @@
 ## Активные
 - [error-ingest](error-ingest.md) — шаг 1
 - [issue-ui](issue-ui.md) — шаг 2
+- [sourcemaps](sourcemaps.md) — шаг 3
