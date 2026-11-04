@@ -1,7 +1,6 @@
 # Handoff
 
-**От:** Architect + Staff Engineer (`sourcemaps`, дизайн) → **к:** EM + Senior Engineer
+**От:** EM + Senior Engineer (`sourcemaps`, план) → **к:** SDE
 
-- ADR-008 (перевод при приёме), 009 (приём/S3/токены), 010 (сайт), 011 (имена функций).
-- Компоненты — `decisions/architect/sourcemaps.md`, библиотеки — `decisions/staff-engineer/sourcemaps.md`.
-- Главный риск — имена функций (goja на сжатом JS Vite): проверить первым в M5.
+- Задачи M1–M11: `decisions/engineering-manager/sourcemaps.md`; подход — `decisions/senior-engineer/sourcemaps.md`.
+- ADR 008–011. Начать с M1; в M5 первым — спайк goja.
