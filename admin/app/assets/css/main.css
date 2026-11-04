@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@layer base {
+  /* Tailwind v4 сбрасывает курсор кнопок на стрелку, а тема Nuxt UI его не возвращает */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem']:not([data-disabled]),
+  [role='option']:not([data-disabled]),
+  [role='tab']:not([data-disabled]),
+  [role='switch']:not([data-disabled]),
+  [role='checkbox']:not([data-disabled]) {
+    cursor: pointer;
+  }
+}

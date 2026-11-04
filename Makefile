@@ -48,7 +48,13 @@ build:
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BUILD_PATH)/$(BINARY_NAME) cmd/main.go
 
 clean:
-	rm -rf $(BUILD_PATH)
+	rm -rf $(BUILD_PATH) admin-ui admin/.output
+
+# интерфейс (ADR-007): один бандл + предсжатые .br/.gz → admin-ui (ADMIN_DIR сервера по умолчанию);
+# Dockerfile копирует admin-ui
+build-admin:
+	cd admin && pnpm install --frozen-lockfile && pnpm generate
+	rm -rf admin-ui && cp -R admin/.output/public admin-ui
 
 lint:
 	golangci-lint run

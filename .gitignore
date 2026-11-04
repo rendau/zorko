@@ -21,3 +21,6 @@ cover.html
 
 # локальный тулчейн proto (make proto-tools)
 /bin/
+
+# сборка интерфейса (make build-admin)
+/admin-ui/

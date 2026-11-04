@@ -1,0 +1,275 @@
+{
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "clear": "Clear",
+    "copied": "Copied",
+    "copy": "Copy",
+    "copyFailed": "Could not copy",
+    "delete": "Delete",
+    "deleted": "Deleted",
+    "edit": "Edit",
+    "error": "Error",
+    "hide": "Hide",
+    "loadedAt": "Data as of {time}",
+    "refresh": "Refresh",
+    "reset": "Reset",
+    "retry": "Retry",
+    "save": "Save",
+    "saved": "Saved",
+    "show": "Show"
+  },
+  "nav": {
+    "issues": "Issues",
+    "settings": "Projects",
+    "users": "People"
+  },
+  "layout": {
+    "language": "Language",
+    "logout": "Sign out",
+    "org": "Organization",
+    "profile": "Profile and password"
+  },
+  "login": {
+    "title": "Sign in to zorko",
+    "submit": "Sign in"
+  },
+  "setup": {
+    "title": "First run",
+    "description": "There is nobody in zorko yet. Create an administrator — they will set up projects and add people.",
+    "submit": "Create and sign in"
+  },
+  "profile": {
+    "title": "Profile",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "saved": "Profile saved"
+  },
+  "usr": {
+    "field": {
+      "name": "Name",
+      "username": "Username",
+      "password": "Password"
+    },
+    "role": {
+      "admin": "Administrator",
+      "member": "Member"
+    },
+    "usernameHint": "a–z, 0–9, dot, dash, underscore",
+    "passwordHint": "At least 8 characters"
+  },
+  "level": {
+    "fatal": "fatal",
+    "error": "error",
+    "warning": "warning",
+    "info": "info",
+    "debug": "debug"
+  },
+  "period": {
+    "1h": "Last hour",
+    "24h": "Last 24 hours",
+    "7d": "7 days",
+    "14d": "14 days",
+    "30d": "30 days"
+  },
+  "issues": {
+    "title": "Issues",
+    "loadError": "Could not load issues",
+    "truncated": "There are too many issues in this period — the most frequent are shown. Narrow the period or the search.",
+    "firstSeen": "First seen",
+    "lastSeen": "Last seen",
+    "filter": {
+      "allProjects": "All projects",
+      "allEnvironments": "All environments"
+    },
+    "sort": {
+      "last_seen": "Last seen",
+      "first_seen": "First seen",
+      "events": "Most events",
+      "users": "Most users"
+    },
+    "search": {
+      "placeholder": "Search: browser.name:Chrome release:shop{'@'}1.4.2 or words from the title"
+    },
+    "column": {
+      "issue": "Issue",
+      "graph": "Graph",
+      "events": "Events",
+      "users": "Users"
+    },
+    "empty": {
+      "title": "No errors",
+      "description": "There were no events in this period. If the project is not connected yet, take the DSN from its settings.",
+      "filtered": "Nothing found — try another search or period",
+      "connect": "Connect a project",
+      "noOrg": "There are no organizations yet",
+      "toSettings": "Go to projects"
+    }
+  },
+  "issue": {
+    "title": "Issue",
+    "loadError": "Could not load the issue",
+    "eventLoadError": "Could not load the event",
+    "eventsLoadError": "Could not load events",
+    "eventGone": "Event not found: full records are kept for 30 days and no more than 100 per minute",
+    "eventsCount": "{n} event | {n} events",
+    "release": "release {r}",
+    "tags": "Tags",
+    "noTags": "No tags in this period",
+    "chart": {
+      "aria": "Chart: {n} event | Chart: {n} events"
+    },
+    "stat": {
+      "events": "Events · {period}",
+      "users": "Users · {period}",
+      "total": "{n} in total"
+    },
+    "tab": {
+      "event": "Event",
+      "events": "All events"
+    },
+    "nav": {
+      "oldest": "Oldest",
+      "older": "Older",
+      "newer": "Newer",
+      "latest": "Latest"
+    },
+    "events": {
+      "note": "The counter includes every crash; the list shows stored full records (up to 100 per minute, 30 days).",
+      "empty": "No stored events",
+      "col": {
+        "time": "Time",
+        "release": "Release",
+        "browser": "Browser",
+        "os": "OS",
+        "user": "User",
+        "url": "Page"
+      }
+    }
+  },
+  "event": {
+    "message": "Message",
+    "noType": "Error",
+    "unhandled": "unhandled",
+    "handled": "handled",
+    "mechanism": "mechanism",
+    "in": "in",
+    "at": "line {line}:{col}",
+    "inApp": "in app",
+    "libraryFrames": "{n} more library frame | {n} more library frames",
+    "tagFilter": "Show events with this value",
+    "section": {
+      "exception": "Exception",
+      "message": "Message",
+      "breadcrumbs": "What happened before the error",
+      "tags": "Tags",
+      "context": "Context",
+      "extra": "Additional data",
+      "json": "Raw JSON"
+    },
+    "crumb": {
+      "filter": "Filter",
+      "empty": "Nothing found",
+      "atError": "at the error",
+      "before": "{s} s before",
+      "showAll": "Show all {n} | Show all {n}"
+    },
+    "context": {
+      "user": "User",
+      "request": "Request",
+      "browser": "Browser",
+      "os": "Operating system",
+      "device": "Device",
+      "runtime": "Runtime",
+      "app": "App",
+      "culture": "Language and time zone",
+      "trace": "Trace",
+      "sdk": "SDK"
+    }
+  },
+  "settings": {
+    "title": "Projects",
+    "slugHint": "a–z, 0–9 and dash",
+    "field": {
+      "name": "Name",
+      "slug": "Slug",
+      "platform": "Platform"
+    },
+    "org": {
+      "create": "New organization",
+      "edit": "Organization",
+      "empty": "There are no organizations yet",
+      "emptyAdmin": "Create an organization, then a project — and get a DSN to connect the SDK.",
+      "emptyMember": "Ask an administrator to create an organization and a project.",
+      "deleteTitle": "Delete the organization?",
+      "deleteDescription": "All its projects, keys and issues will be deleted. Events in ClickHouse expire on their own in 30 days."
+    },
+    "project": {
+      "title": "Projects",
+      "create": "New project",
+      "edit": "Project",
+      "empty": "There are no projects yet",
+      "keys": "Keys",
+      "loadError": "Could not load the project",
+      "deleteTitle": "Delete the project?",
+      "deleteDescription": "Its keys and issues will be deleted; errors sent with the old DSN will be rejected."
+    },
+    "key": {
+      "title": "Keys (DSN)",
+      "create": "New key",
+      "edit": "Key",
+      "empty": "No keys — create one to get a DSN",
+      "label": "Label",
+      "noLabel": "No label",
+      "active": "Accept events",
+      "on": "active",
+      "off": "disabled",
+      "rateLimit": "Events per second limit",
+      "rateLimitHint": "Spam protection, per ingest replica. 0 — no limit",
+      "limit": "up to {n}/s",
+      "noLimit": "no limit",
+      "origins": "Allowed sites",
+      "originsHint": "Hosts or masks separated by spaces or new lines: shop.mechta.kz, *.mdev.kz. Empty — any",
+      "anyOrigin": "any",
+      "noDsn": "Ingest address is not configured (INGEST_PUBLIC_URL)",
+      "deleteTitle": "Delete the key?",
+      "deleteDescription": "Apps with this DSN will stop sending errors."
+    },
+    "sdk": {
+      "title": "How to connect",
+      "description": "Regular Sentry libraries — only the DSN changes."
+    }
+  },
+  "users": {
+    "title": "People",
+    "create": "Add a person",
+    "edit": "Person",
+    "loadError": "Could not load people",
+    "role": "Role",
+    "status": "Status",
+    "active": "Active",
+    "disabled": "Disabled",
+    "tempPassword": "Temporary password",
+    "newPassword": "New password (empty — keep)",
+    "adminHint": "An administrator manages projects, keys and people; a member only views",
+    "selfHint": "You cannot remove your own administrator rights or disable yourself",
+    "deleteTitle": "Delete the person?",
+    "deleteDescription": "They will no longer be able to sign in."
+  },
+  "apiError": {
+    "not_authorized": "Wrong username or password, or the session has expired",
+    "no_permission": "Not enough permissions",
+    "object_not_found": "Not found",
+    "invalid_request": "Check the form fields",
+    "invalid_query": "Error in the search query",
+    "slug_exists": "This slug is already taken",
+    "org_not_found": "Organization not found",
+    "project_not_found": "Project not found",
+    "usr_username_exists": "This username is already taken",
+    "login_rate_limited": "Too many sign-in attempts — wait a minute",
+    "usr_self_change": "You cannot delete, disable or demote yourself",
+    "service_not_available": "The service is temporarily unavailable",
+    "incorrect_page_size": "Wrong page size",
+    "id_required": "Id is missing"
+  }
+}
