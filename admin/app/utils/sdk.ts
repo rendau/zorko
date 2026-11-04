@@ -79,3 +79,50 @@ export default Sentry.wrap(App)`,
 }
 
 export const PLATFORMS = ['vue', 'react', 'javascript', 'flutter', 'react-native', 'node', 'other']
+
+// ingestUrl — адрес сервера приёма из DSN: http(s)://<хост>[/<путь>] без ключа и номера проекта
+export function ingestUrl(dsn: string): string {
+  try {
+    const u = new URL(dsn)
+    const path = u.pathname.replace(/\/[^/]*$/, '')
+    return `${u.protocol}//${u.host}${path}`
+  }
+  catch {
+    return ''
+  }
+}
+
+export interface BuildSnippet {
+  install: string
+  code: string
+  cli: string
+}
+
+// buildSnippet — заливка карт при сборке: @sentry/vite-plugin и то же голым sentry-cli.
+// Токен CI организации (SENTRY_AUTH_TOKEN) несёт адрес и организацию; .map не уезжают на сайт.
+export function buildSnippet(url: string, org: string, project: string): BuildSnippet {
+  return {
+    install: 'npm install --save-dev @sentry/vite-plugin',
+    code: `// vite.config.js
+import { defineConfig } from 'vite'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
+
+export default defineConfig({
+  build: { sourcemap: 'hidden' },
+  plugins: [
+    sentryVitePlugin({
+      url: '${url}/',
+      org: '${org}',
+      project: '${project}',
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      release: { name: process.env.VITE_RELEASE },
+      sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+      telemetry: false,
+    }),
+  ],
+})`,
+    cli: `npx @sentry/cli sourcemaps inject ./dist
+npx @sentry/cli sourcemaps upload --org ${org} --project ${project} --release "$VITE_RELEASE" ./dist
+find ./dist -name '*.map' -delete`,
+  }
+}

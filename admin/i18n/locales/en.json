@@ -17,7 +17,8 @@
     "retry": "Retry",
     "save": "Save",
     "saved": "Saved",
-    "show": "Show"
+    "show": "Show",
+    "byteUnits": "B,KB,MB,GB"
   },
   "nav": {
     "issues": "Issues",
@@ -237,7 +238,82 @@
     },
     "sdk": {
       "title": "How to connect",
-      "description": "Regular Sentry libraries — only the DSN changes."
+      "description": "Regular Sentry libraries — only the DSN changes.",
+      "build": "Build: source maps",
+      "buildHint": "During the build the plugin uploads source maps to zorko and removes .map files so they do not reach the site. CI needs one variable, SENTRY_AUTH_TOKEN — an organization CI token (Projects → CI tokens).",
+      "buildCli": "Without the plugin — the same steps as commands after the build:"
+    },
+    "maps": {
+      "title": "Source maps",
+      "description": "Source map bundles from CI and fetched from the site. A bundle is deleted automatically after 30 days without errors.",
+      "search": "Release or build id",
+      "loadError": "Could not load source maps",
+      "empty": "No source maps yet",
+      "emptyHint": "Connect the build plugin — the «Build: source maps» tab above.",
+      "notFound": "Nothing found",
+      "col": {
+        "uploaded": "Uploaded",
+        "release": "Release",
+        "source": "Source",
+        "files": "Files",
+        "size": "Size",
+        "used": "Last used"
+      },
+      "state": {
+        "assembling": "assembling",
+        "ok": "ready",
+        "error": "error"
+      },
+      "sourceKind": {
+        "upload": "CI",
+        "site": "site"
+      },
+      "fileType": {
+        "minified_source": "minified JS",
+        "source_map": "source map",
+        "source": "source"
+      },
+      "neverUsed": "not yet",
+      "showFiles": "Bundle files",
+      "debugId": "Build id",
+      "deleteTitle": "Delete the source map bundle?",
+      "deleteDescription": "New errors from this build will no longer be shown with original code. Errors already received will not change."
+    },
+    "siteFetch": {
+      "title": "Source maps from the site",
+      "description": "A fallback: when there is no source map from CI, zorko fetches it from the site. Each address is checked no more often than the interval, after success or failure.",
+      "enabled": "Fetch source maps from the site",
+      "enabledHint": "Off — zorko never requests the site",
+      "hosts": "Sites allowed to fetch from",
+      "hostsHint": "Hosts separated by spaces or new lines. Empty — none",
+      "headerName": "Secret header",
+      "headerValue": "Header value",
+      "headerSet": "Set — leave empty to keep",
+      "headerClear": "Erase the header value",
+      "optional": "Optional",
+      "interval": "Recheck an address after, minutes",
+      "intervalHint": "From 1 to 10080 (a week)",
+      "failures": "Recent failures"
+    },
+    "tokens": {
+      "title": "CI tokens",
+      "description": "For uploading source maps and releases from the build. A token works only for this organization.",
+      "create": "New token",
+      "createSubmit": "Create",
+      "loadError": "Could not load tokens",
+      "empty": "No tokens",
+      "name": "Name",
+      "nameHint": "For example, «gitlab shop»",
+      "token": "Token",
+      "createdBy": "Created by",
+      "used": "Last used",
+      "neverUsed": "never used",
+      "onceTitle": "Copy the token now",
+      "onceDescription": "It will not be shown again: zorko stores only a fingerprint. Lost it — delete it and create a new one.",
+      "usage": "Put it into the CI variable SENTRY_AUTH_TOKEN — the zorko address and the organization are already inside.",
+      "done": "Done",
+      "deleteTitle": "Delete the token?",
+      "deleteDescription": "Builds with this token will stop uploading source maps right away."
     }
   },
   "users": {
@@ -270,6 +346,39 @@
     "usr_self_change": "You cannot delete, disable or demote yourself",
     "service_not_available": "The service is temporarily unavailable",
     "incorrect_page_size": "Wrong page size",
-    "id_required": "Id is missing"
+    "id_required": "Id is missing",
+    "token_invalid": "Invalid CI token",
+    "sourcemaps_disabled": "Source maps are not configured on the server",
+    "chunk_invalid": "Broken upload chunk",
+    "bundle_invalid": "Broken source map bundle",
+    "release_not_found": "Release not found"
+  },
+  "sourcemap": {
+    "notResolved": "not resolved",
+    "reason": "{ci}; from the site: {site}",
+    "view": {
+      "original": "Original",
+      "minified": "Minified",
+      "aria": "Stack view"
+    },
+    "problem": {
+      "title": "Source maps were not applied to {n} frame | Source maps were not applied to {n} frames",
+      "toMaps": "Project source maps"
+    },
+    "code": {
+      "no_debug_id_no_release": "the error has no build id and no release — upload source maps with the plugin",
+      "map_not_found": "no source map uploaded for this file",
+      "map_invalid": "the source map is broken",
+      "position_not_in_map": "this line is not in the source map",
+      "storage_unavailable": "the source map storage did not respond",
+      "time_budget_exceeded": "ran out of time",
+      "site_disabled": "fetching from the site is off",
+      "site_host_not_allowed": "the site is not in the allowed list",
+      "site_timeout": "the site did not respond in time",
+      "site_no_sourcemap_url": "the file has no source map link",
+      "site_too_large": "the file is too large",
+      "site_unavailable": "the site is unavailable",
+      "site_http": "the site responded {status}"
+    }
   }
 }

@@ -209,7 +209,7 @@ const searchScope = computed(() => ({
               </div>
               <LoadAlert :title="t('issue.eventLoadError')" :error="eventError" @retry="loadEvent" />
               <USkeleton v-if="eventLoading && !event" class="h-64 w-full" />
-              <EventDetail v-if="event" :event="event" @tag="filterByTag" />
+              <EventDetail v-if="event" :event="event" :project-id="issue.issue.project_id" @tag="filterByTag" />
             </template>
 
             <template v-else>

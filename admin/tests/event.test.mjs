@@ -59,3 +59,31 @@ test('секунды до ошибки', () => {
   assert.equal(secondsBefore('2026-01-01T00:00:00.000Z', '2026-01-01T00:00:03.200Z'), -3.2)
   assert.equal(secondsBefore('', 'x'), null)
 })
+
+test('карты исходников: переведённые кадры, исходный стек и причины', async () => {
+  const { sourcemapProblem } = await import('../app/utils/event.ts')
+  const ev = parseEvent(JSON.stringify({
+    exception: { values: [{
+      type: 'RangeError',
+      value: 'x',
+      stacktrace: { frames: [
+        { filename: 'https://s.kz/assets/vendor.js', function: 'a', lineno: 1, colno: 9, data: { zorko_error: 'map_not_found', zorko_site_error: 'site_disabled' } },
+        { filename: 'src/promo.js', function: 'validateRule', lineno: 10, colno: 35, in_app: true, data: { symbolicated: true, resolved_with: 'debug_id' } },
+      ] },
+      raw_stacktrace: { frames: [
+        { filename: 'https://s.kz/assets/vendor.js', function: 'a', lineno: 1, colno: 9 },
+        { filename: 'https://s.kz/assets/index.js', function: 'yv', lineno: 24, colno: 5350 },
+      ] },
+    }] },
+  }))
+  const [exc] = ev.exceptions
+  assert.equal(exc.frames[0].symbolicated, true)
+  assert.equal(exc.frames[0].function, 'validateRule')
+  assert.equal(exc.rawFrames.length, 2)
+  assert.equal(exc.rawFrames[0].function, 'yv', 'сжатый вид — тоже место падения первым')
+  assert.deepEqual(sourcemapProblem(exc), { count: 1, error: 'map_not_found', siteError: 'site_disabled' })
+
+  const plain = parseEvent(JSON.stringify({ exception: [{ type: 'E', stacktrace: { frames: [{ filename: 'a.js' }] } }] }))
+  assert.equal(plain.exceptions[0].rawFrames, null)
+  assert.equal(sourcemapProblem(plain.exceptions[0]), null)
+})

@@ -47,3 +47,15 @@ export function relativeTime(iso: string, now = Date.now()): string {
   }
   return ''
 }
+
+// formatBytes — 1913000 → «1,8 МБ» / «1.8 MB»
+export function formatBytes(n: number | string): string {
+  let v = Number(n) || 0
+  const units = tf('common.byteUnits').split(',')
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${new Intl.NumberFormat(intlTag.value, { maximumFractionDigits: i ? 1 : 0 }).format(v)} ${units[i]}`
+}

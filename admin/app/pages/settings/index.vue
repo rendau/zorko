@@ -125,6 +125,8 @@ async function removeProject() {
             </tbody>
           </table>
         </div>
+
+        <SettingsTokenList v-if="auth.isAdmin.value" :org-id="org.currentId.value" />
       </div>
 
       <SettingsOrgModal v-model:open="orgModal" :org="orgEditing ? org.current.value : null" @saved="orgSaved" />

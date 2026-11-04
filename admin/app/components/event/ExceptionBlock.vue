@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import type { ExceptionView, FrameView } from '~/utils/event'
 
-// Исключение со стеком: свой код раскрыт, кадры библиотек свёрнуты подряд идущими группами
-const props = defineProps<{ exception: ExceptionView }>()
-const { t } = useI18n()
+// Исключение со стеком: свой код раскрыт, кадры библиотек свёрнуты подряд идущими группами.
+// Переведённый по картам стек — с переключателем на исходный сжатый; у непереведённых кадров — причина.
+const props = defineProps<{ exception: ExceptionView, projectId?: string }>()
+const { t, te } = useI18n()
 
 interface Group {
   inApp: boolean
   frames: FrameView[]
 }
 
+const showRaw = ref(false)
+const frames = computed(() => (showRaw.value && props.exception.rawFrames) ? props.exception.rawFrames : props.exception.frames)
+const problem = computed(() => showRaw.value ? null : sourcemapProblem(props.exception))
+
 const groups = computed<Group[]>(() => {
   const out: Group[] = []
-  for (const f of props.exception.frames) {
+  for (const f of frames.value) {
     const last = out[out.length - 1]
     if (last && last.inApp === f.inApp)
       last.frames.push(f)
@@ -23,7 +28,7 @@ const groups = computed<Group[]>(() => {
 })
 
 // если своих кадров нет совсем — показываем всё раскрытым
-const anyInApp = computed(() => props.exception.frames.some(f => f.inApp))
+const anyInApp = computed(() => frames.value.some(f => f.inApp))
 const expanded = ref(new Set<number>())
 const openFrames = ref(new Set<string>())
 
@@ -50,10 +55,34 @@ function toggleFrame(key: string) {
 }
 
 // контекст первого своего кадра (место падения) раскрыт сразу
-onMounted(() => {
+function openFirst() {
+  expanded.value = new Set()
   const gi = groups.value.findIndex(g => g.inApp)
-  if (gi >= 0 && groups.value[gi]!.frames[0]?.context.length)
-    openFrames.value = new Set([frameKey(gi, 0)])
+  openFrames.value = gi >= 0 && groups.value[gi]!.frames[0]?.context.length ? new Set([frameKey(gi, 0)]) : new Set()
+}
+onMounted(openFirst)
+watch(showRaw, openFirst)
+
+// codeText — пояснение по коду причины; site_http_404 → «сайт ответил 404»
+function codeText(code: string): string {
+  const http = /^site_http_(\d+)$/.exec(code)
+  if (http)
+    return t('sourcemap.code.site_http', { status: http[1] })
+  return te(`sourcemap.code.${code}`) ? t(`sourcemap.code.${code}`) : code
+}
+
+function reason(error: string, siteError: string): string {
+  const ci = codeText(error)
+  return siteError ? t('sourcemap.reason', { ci, site: codeText(siteError) }) : ci
+}
+
+const viewItems = computed(() => [
+  { label: t('sourcemap.view.original'), value: 'original' },
+  { label: t('sourcemap.view.minified'), value: 'minified' },
+])
+const viewMode = computed({
+  get: () => showRaw.value ? 'minified' : 'original',
+  set: (v: string) => { showRaw.value = v === 'minified' },
 })
 </script>
 
@@ -65,12 +94,32 @@ onMounted(() => {
         <UBadge v-if="exception.handled === false" color="error" variant="subtle" size="sm">{{ t('event.unhandled') }}</UBadge>
         <UBadge v-else-if="exception.handled" color="neutral" variant="subtle" size="sm">{{ t('event.handled') }}</UBadge>
         <span v-if="exception.mechanism" class="text-xs text-dimmed">{{ t('event.mechanism') }}: {{ exception.mechanism }}</span>
+        <UTabs
+          v-if="exception.rawFrames"
+          v-model="viewMode"
+          :items="viewItems"
+          :content="false"
+          size="xs"
+          class="ms-auto w-auto"
+          :aria-label="t('sourcemap.view.aria')"
+        />
       </div>
       <p v-if="exception.value && !exception.synthetic" class="mt-1 break-words text-sm">{{ exception.value }}</p>
     </div>
 
-    <div v-if="exception.frames.length" class="overflow-hidden rounded-md border border-default text-xs">
-      <template v-for="(g, gi) in groups" :key="gi">
+    <UAlert
+      v-if="problem"
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-map"
+      :title="t('sourcemap.problem.title', problem.count)"
+      :description="reason(problem.error, problem.siteError)"
+      :actions="projectId ? [{ label: t('sourcemap.problem.toMaps'), to: `/settings/projects/${projectId}#maps`, color: 'warning', variant: 'outline', size: 'xs' }] : []"
+      :ui="{ title: 'text-sm', description: 'text-xs' }"
+    />
+
+    <div v-if="frames.length" class="overflow-hidden rounded-md border border-default text-xs">
+      <template v-for="(g, gi) in groups" :key="`${showRaw}-${gi}`">
         <button
           v-if="!g.inApp && anyInApp && !expanded.has(gi)"
           type="button"
@@ -93,7 +142,12 @@ onMounted(() => {
               <span v-if="f.function" class="text-dimmed">{{ t('event.in') }}</span>
               <span v-if="f.function" class="font-semibold">{{ f.function }}</span>
               <span v-if="f.lineno" class="text-dimmed">{{ t('event.at', { line: f.lineno, col: f.colno }) }}</span>
-              <UBadge v-if="f.inApp" color="primary" variant="soft" size="sm" class="ms-auto">{{ t('event.inApp') }}</UBadge>
+              <span class="ms-auto flex items-center gap-1">
+                <UTooltip v-if="f.error && !showRaw" :text="reason(f.error, f.siteError)">
+                  <UBadge color="neutral" variant="outline" size="sm" icon="i-lucide-map-pin-off" tabindex="0">{{ t('sourcemap.notResolved') }}</UBadge>
+                </UTooltip>
+                <UBadge v-if="f.inApp" color="primary" variant="soft" size="sm">{{ t('event.inApp') }}</UBadge>
+              </span>
             </button>
             <pre
               v-if="openFrames.has(frameKey(gi, fi)) && f.context.length"

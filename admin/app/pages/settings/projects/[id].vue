@@ -5,6 +5,7 @@ import type { ProjectKeyMain, ProjectMain } from '~/types/project'
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuth()
+const org = useOrg()
 const { loading: removing, run } = useApiAction()
 const id = computed(() => String(route.params.id))
 
@@ -50,8 +51,20 @@ async function removeKey() {
 const snippetTab = ref('vue')
 const firstDsn = computed(() => keys.value.find(k => k.active)?.dsn ?? keys.value[0]?.dsn ?? '')
 const snippets = computed(() => sdkSnippets(firstDsn.value))
-const snippetTabs = computed(() => snippets.value.map(s => ({ label: s.label, value: s.id })))
+const snippetTabs = computed(() => [
+  ...snippets.value.map(s => ({ label: s.label, value: s.id })),
+  { label: t('settings.sdk.build'), value: 'build' },
+])
 const snippet = computed(() => snippets.value.find(s => s.id === snippetTab.value) ?? snippets.value[0])
+const orgSlug = computed(() => org.orgs.value.find(o => o.id === project.value?.org_id)?.slug ?? '')
+const build = computed(() => buildSnippet(ingestUrl(firstDsn.value), orgSlug.value, project.value?.slug ?? ''))
+
+// #maps из плашки карточки проблемы — прокрутить к картам
+onMounted(() => {
+  void org.load()
+  if (route.hash === '#maps')
+    setTimeout(() => document.getElementById('maps')?.scrollIntoView({ behavior: 'smooth' }), 300)
+})
 
 watch(project, (p) => {
   if (p && snippets.value.some(s => s.id === p.platform))
@@ -114,7 +127,23 @@ watch(project, (p) => {
           <h3 class="text-sm font-semibold text-highlighted">{{ t('settings.sdk.title') }}</h3>
           <p class="text-xs text-muted">{{ t('settings.sdk.description') }}</p>
           <UTabs v-model="snippetTab" :items="snippetTabs" :content="false" variant="link" size="sm" />
-          <div v-if="snippet" class="space-y-2">
+          <div v-if="snippetTab === 'build'" class="space-y-2">
+            <p class="text-xs text-muted">{{ t('settings.sdk.buildHint') }}</p>
+            <div class="flex items-center gap-1 rounded-md border border-default bg-elevated/40 px-3 py-1.5">
+              <code class="min-w-0 flex-1 truncate font-mono text-xs">{{ build.install }}</code>
+              <CopyButton :text="build.install" />
+            </div>
+            <div class="relative">
+              <pre class="overflow-x-auto rounded-md border border-default bg-elevated/40 p-3 font-mono text-xs">{{ build.code }}</pre>
+              <CopyButton :text="build.code" class="absolute right-2 top-2" />
+            </div>
+            <p class="text-xs text-muted">{{ t('settings.sdk.buildCli') }}</p>
+            <div class="relative">
+              <pre class="overflow-x-auto rounded-md border border-default bg-elevated/40 p-3 font-mono text-xs">{{ build.cli }}</pre>
+              <CopyButton :text="build.cli" class="absolute right-2 top-2" />
+            </div>
+          </div>
+          <div v-else-if="snippet" class="space-y-2">
             <div class="flex items-center gap-1 rounded-md border border-default bg-elevated/40 px-3 py-1.5">
               <code class="min-w-0 flex-1 truncate font-mono text-xs">{{ snippet.install }}</code>
               <CopyButton :text="snippet.install" />
@@ -124,6 +153,18 @@ watch(project, (p) => {
               <CopyButton :text="snippet.code" class="absolute right-2 top-2" />
             </div>
           </div>
+        </section>
+
+        <section id="maps" class="scroll-mt-4 space-y-3">
+          <h3 class="text-sm font-semibold text-highlighted">{{ t('settings.maps.title') }}</h3>
+          <p class="text-xs text-muted">{{ t('settings.maps.description') }}</p>
+          <SettingsBundleList :project-id="id" :is-admin="auth.isAdmin.value" />
+        </section>
+
+        <section class="space-y-3">
+          <h3 class="text-sm font-semibold text-highlighted">{{ t('settings.siteFetch.title') }}</h3>
+          <p class="text-xs text-muted">{{ t('settings.siteFetch.description') }}</p>
+          <SettingsSiteFetchForm :project="project" :is-admin="auth.isAdmin.value" @saved="load" />
         </section>
       </div>
 

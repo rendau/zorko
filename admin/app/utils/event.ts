@@ -16,6 +16,10 @@ export interface FrameView {
   colno: number
   inApp: boolean
   context: ContextLine[]
+  // карты исходников: кадр переведён; иначе причина (код) из CI и с сайта
+  symbolicated: boolean
+  error: string
+  siteError: string
 }
 
 export interface ExceptionView {
@@ -26,6 +30,15 @@ export interface ExceptionView {
   synthetic: boolean
   // кадры в порядке показа: место падения первым
   frames: FrameView[]
+  // исходный сжатый стек, если кадры переведены по картам
+  rawFrames: FrameView[] | null
+}
+
+// SourcemapProblem — кадры, которые карты не перевели: сколько и главная причина
+export interface SourcemapProblem {
+  count: number
+  error: string
+  siteError: string
 }
 
 export interface BreadcrumbView {
@@ -95,6 +108,7 @@ export function isInApp(f: Json): boolean {
 }
 
 function frameView(f: Json): FrameView {
+  const data = isObject(f.data) ? f.data : {}
   const lineno = Number(f.lineno) || 0
   const pre = Array.isArray(f.pre_context) ? f.pre_context.map(stringify) : []
   const post = Array.isArray(f.post_context) ? f.post_context.map(stringify) : []
@@ -112,6 +126,9 @@ function frameView(f: Json): FrameView {
     colno: Number(f.colno) || 0,
     inApp: isInApp(f),
     context,
+    symbolicated: data.symbolicated === true,
+    error: stringify(data.zorko_error),
+    siteError: stringify(data.zorko_site_error),
   }
 }
 
@@ -120,6 +137,7 @@ function exceptionView(e: unknown): ExceptionView | null {
     return null
   const mechanism = isObject(e.mechanism) ? e.mechanism : {}
   const stack = isObject(e.stacktrace) && Array.isArray(e.stacktrace.frames) ? e.stacktrace.frames : []
+  const raw = isObject(e.raw_stacktrace) && Array.isArray(e.raw_stacktrace.frames) ? e.raw_stacktrace.frames : null
   return {
     type: stringify(e.type),
     value: stringify(e.value),
@@ -127,7 +145,23 @@ function exceptionView(e: unknown): ExceptionView | null {
     handled: typeof mechanism.handled === 'boolean' ? mechanism.handled : null,
     synthetic: mechanism.synthetic === true,
     frames: stack.filter(isObject).map(frameView).reverse(),
+    rawFrames: raw ? raw.filter(isObject).map(frameView).reverse() : null,
   }
+}
+
+// sourcemapProblem — непереведённые кадры исключения (без своих кадров — все); нет — null
+export function sourcemapProblem(e: ExceptionView): SourcemapProblem | null {
+  const failed = e.frames.filter(f => f.error !== '')
+  if (!failed.length)
+    return null
+  const counts = new Map<string, number>()
+  for (const f of failed) {
+    const key = `${f.error}|${f.siteError}`
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1])
+  const [error, siteError] = top![0].split('|')
+  return { count: failed.length, error: error!, siteError: siteError! }
 }
 
 // timestamp — секунды (число) или строка → ISO

@@ -2,7 +2,7 @@
 import type { EventMain } from '~/types/event'
 
 // Событие целиком: исключения со стеком, что было перед ошибкой, теги, контекст, extra, сырой JSON
-const props = defineProps<{ event: EventMain }>()
+const props = defineProps<{ event: EventMain, projectId?: string }>()
 const emit = defineEmits<{ tag: [key: string, value: string] }>()
 const { t, te } = useI18n()
 const toast = useToast()
@@ -37,7 +37,7 @@ async function copyJson() {
   <div class="space-y-6">
     <section v-if="view.exceptions.length" class="space-y-4">
       <h3 class="text-sm font-semibold text-highlighted">{{ t('event.section.exception') }}</h3>
-      <EventExceptionBlock v-for="(e, i) in view.exceptions" :key="i" :exception="e" />
+      <EventExceptionBlock v-for="(e, i) in view.exceptions" :key="i" :exception="e" :project-id="projectId" />
     </section>
 
     <section v-if="view.message && !view.exceptions.some(e => !e.synthetic)">
