@@ -27,6 +27,7 @@ import (
 	domainProjectKeyRepoDbP "github.com/rendau/zorko/internal/domain/project_key/repo/db"
 	domainProjectKeyServiceP "github.com/rendau/zorko/internal/domain/project_key/service"
 	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
+	"github.com/rendau/zorko/internal/infra/chmigrate"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
@@ -82,7 +83,7 @@ func (a *App) Init() {
 
 	// ch-migrations
 	{
-		runChMigrations(a.ctx, a.chConn)
+		chmigrate.Run(a.ctx, a.chConn, "./migrations-ch")
 		slog.Info("CH-migrations have been successfully applied")
 	}
 

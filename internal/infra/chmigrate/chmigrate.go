@@ -1,4 +1,4 @@
-package app
+package chmigrate
 
 import (
 	"context"
@@ -13,12 +13,12 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
-// runChMigrations применяет migrations-ch/*.up.sql по возрастанию номера.
+// Run применяет <dir>/*.up.sql по возрастанию номера.
 // Свой раннер, а не golang-migrate: его драйвер clickhouse построен на clickhouse-go v1, который
 // регистрирует database/sql-драйвер под тем же именем, что и clickhouse-go v2 (паника при старте).
 // Блокировки между копиями нет — миграции пишутся идемпотентно (if not exists).
-func runChMigrations(ctx context.Context, conn driver.Conn) {
-	absPath, _ := filepath.Abs("./migrations-ch")
+func Run(ctx context.Context, conn driver.Conn, dir string) {
+	absPath, _ := filepath.Abs(dir)
 
 	files, _ := filepath.Glob(filepath.Join(absPath, "*.up.sql"))
 	if len(files) == 0 {
