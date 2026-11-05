@@ -1,30 +1,56 @@
 name: Deploy
+
+# Сборка образа ghcr.io/rendau/zorko:latest на раннерах GitHub: сервер (Go) и интерфейс (Nuxt)
+# собираются на раннере, Dockerfile только копирует бинарник, admin-ui, миграции и доки.
+# В кластере (helm-zeon, charts/argo/zorko) образ подхватывает keel.
 on:
   push:
     branches:
-      - disabled
+      - master
+  workflow_dispatch:
+
 jobs:
   build:
     name: Build and deploy
-    runs-on: yc-arc
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     env:
-      OWNER: rendau
-      IMAGE: zorko:latest
+      IMAGE: ghcr.io/${{ github.repository_owner }}/zorko:latest
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # версия pnpm — та же, что у разработчика; Node — из admin/.node-version
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: admin/.node-version
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+
+      - run: go vet ./... && go test ./...
+
+      # сервер → cmd/build/svc
+      - run: make build
+
+      # интерфейс → admin-ui (один бандл + предсжатые .br/.gz, ADR-007)
+      - run: make build-admin
+
+      # вход в реестр — после сборки: код зависимостей не видит токен записи
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: go mod download
+      - run: docker build -t "$IMAGE" .
 
-      # - run: go test -v ./...
-
-      - run: make
-
-      - run: docker build -t ghcr.io/$OWNER/$IMAGE .
-
-      - run: docker push ghcr.io/$OWNER/$IMAGE
+      - run: docker push "$IMAGE"
