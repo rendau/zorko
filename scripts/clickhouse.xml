@@ -23,13 +23,30 @@
      - блок сжатия 256 КБ вместо 1 МБ (merge_tree/max_compress_block_size): память слияния
        уходит в основном на буферы по каждой колонке, на стенде слияние `event` стало
        вдвое легче (пик 190 → 95 МБ), данные на диске — на ~5 % больше;
-     - кэши ограничены сотнями МБ — у zorko данных мало, большие кэши ему не нужны.
+     - кэши ограничены сотнями МБ — у zorko данных мало, большие кэши ему не нужны;
+     - пулы потоков под то, чем zorko не пользуется (копирование между серверами, переезд
+       между дисками, Kafka внутри ClickHouse, распределённые таблицы), — по 1 потоку,
+       планировщик фоновых задач — 16 вместо 512. Каждый поток держит свой запас памяти и
+       простаивая: на стенде потоков 667 → 97, память контейнера 1,0 ГБ → 0,47 ГБ;
+     - сводные метрики (system.asynchronous_metrics) — раз в 10 с, а не каждую секунду.
      Настройки merge_tree действуют и на уже созданные таблицы (после перезапуска).
+  5. Файлы журнала сервера в контейнере — не больше 2 по 100 МБ (по умолчанию 10 по 1 ГБ).
 -->
 <clickhouse>
     <logger>
         <level>warning</level>
+        <size>100M</size>
+        <count>2</count>
     </logger>
+
+    <background_schedule_pool_size>16</background_schedule_pool_size>
+    <background_common_pool_size>2</background_common_pool_size>
+    <background_move_pool_size>1</background_move_pool_size>
+    <background_fetches_pool_size>1</background_fetches_pool_size>
+    <background_distributed_schedule_pool_size>1</background_distributed_schedule_pool_size>
+    <background_message_broker_schedule_pool_size>1</background_message_broker_schedule_pool_size>
+    <background_buffer_flush_schedule_pool_size>1</background_buffer_flush_schedule_pool_size>
+    <asynchronous_metrics_update_period_s>10</asynchronous_metrics_update_period_s>
 
     <background_pool_size>2</background_pool_size>
     <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
