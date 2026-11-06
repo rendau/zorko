@@ -12,10 +12,11 @@ import (
 type Usecase struct {
 	svc        ServiceI
 	sessionSvc SessionServiceI
+	accessSvc  AccessServiceI
 }
 
-func New(svc ServiceI, sessionSvc SessionServiceI) *Usecase {
-	return &Usecase{svc: svc, sessionSvc: sessionSvc}
+func New(svc ServiceI, sessionSvc SessionServiceI, accessSvc AccessServiceI) *Usecase {
+	return &Usecase{svc: svc, sessionSvc: sessionSvc, accessSvc: accessSvc}
 }
 
 func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
@@ -44,6 +45,20 @@ func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main,
 	if err := util.RequirePageSize(pars.ListParams, 0); err != nil {
 		return nil, 0, err
 	}
+	// участник видит ключи только своих проектов
+	if pars.ProjectId != nil {
+		if err := u.accessSvc.CheckProject(ctx, *pars.ProjectId); err != nil {
+			return nil, 0, err
+		}
+	} else {
+		access, err := u.accessSvc.ProjectAccess(ctx)
+		if err != nil {
+			return nil, 0, err
+		}
+		if !access.All {
+			pars.ProjectIds = &access.Ids
+		}
+	}
 	items, tCount, err := u.svc.List(ctx, pars)
 	if err != nil {
 		return nil, 0, fmt.Errorf("svc.List: %w", err)
@@ -58,6 +73,9 @@ func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
 	result, _, err := u.svc.Get(ctx, id, true)
 	if err != nil {
 		return nil, fmt.Errorf("svc.Get: %w", err)
+	}
+	if err = u.accessSvc.CheckProject(ctx, result.ProjectId); err != nil {
+		return nil, err
 	}
 	return result, nil
 }

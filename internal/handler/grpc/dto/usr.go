@@ -23,6 +23,7 @@ func EncodeUsrMain(v *domainModel.Main, _ int) *proto.UsrMain {
 		IsAdmin:    v.IsAdmin,
 		Name:       v.Name,
 		Username:   v.Username,
+		ProjectIds: v.ProjectIds,
 	}
 }
 
@@ -42,22 +43,32 @@ func DecodeUsrListReq(v *proto.UsrListReq) *domainModel.ListReq {
 
 func DecodeUsrCreateReq(v *proto.UsrCreateReq) *domainModel.Edit {
 	return &domainModel.Edit{
-		Active:   v.Active,
-		IsAdmin:  v.IsAdmin,
-		Name:     v.Name,
-		Username: v.Username,
-		Password: v.Password,
+		Active:     v.Active,
+		IsAdmin:    v.IsAdmin,
+		Name:       v.Name,
+		Username:   v.Username,
+		Password:   v.Password,
+		ProjectIds: lo.EmptyableToPtr(v.GetProjectIds()), // пусто — default в БД (все проекты)
 	}
 }
 
 func DecodeUsrUpdateReq(v *proto.UsrUpdateReq) *domainModel.Edit {
 	return &domainModel.Edit{
-		Active:   v.Active,
-		IsAdmin:  v.IsAdmin,
-		Name:     v.Name,
-		Username: v.Username,
-		Password: v.Password,
+		Active:     v.Active,
+		IsAdmin:    v.IsAdmin,
+		Name:       v.Name,
+		Username:   v.Username,
+		Password:   v.Password,
+		ProjectIds: decodeUsrProjectIdList(v.GetProjectIds()),
 	}
+}
+
+// decodeUsrProjectIdList — не передан — список не меняется
+func decodeUsrProjectIdList(v *proto.UsrProjectIdList) *[]int64 {
+	if v == nil {
+		return nil
+	}
+	return new(lo.Ternary(v.GetValues() == nil, []int64{}, v.GetValues()))
 }
 
 func DecodeUsrUpdateProfileReq(v *proto.UsrUpdateProfileReq) *usecase.UpdateProfileReq {

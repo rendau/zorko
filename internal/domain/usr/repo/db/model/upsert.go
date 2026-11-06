@@ -17,10 +17,11 @@ type Upsert struct {
 	Name       *string
 	Username   *string
 	Password   *string
+	ProjectIds *[]int64
 }
 
 func (m *Upsert) CreateColumnMap() map[string]any {
-	result := make(map[string]any, 7)
+	result := make(map[string]any, 8)
 	if m.CreatedAt != nil {
 		result["created_at"] = *m.CreatedAt
 	}
@@ -41,6 +42,9 @@ func (m *Upsert) CreateColumnMap() map[string]any {
 	}
 	if m.Password != nil {
 		result["password"] = *m.Password
+	}
+	if m.ProjectIds != nil {
+		result["project_ids"] = *m.ProjectIds
 	}
 	return result
 }
@@ -69,5 +73,6 @@ func DecodeUpsert(v *domainModel.Edit) *Upsert {
 		Name:       v.Name,
 		Username:   v.Username,
 		Password:   v.Password,
+		ProjectIds: v.ProjectIds,
 	}
 }

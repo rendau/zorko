@@ -3,6 +3,8 @@ import type { ProjectEdit, ProjectKeyEdit, ProjectKeyMain, ProjectMain } from '~
 
 export const projectApi = {
   list: (orgId: string) => apiFetch<{ pagination_info: PaginationInfo, results: ProjectMain[] }>('/project', { query: { org_id: orgId, list_params: { page: 0, page_size: 100 } } }),
+  // listAll — проекты всех организаций (выбор проектов человека; только админу)
+  listAll: () => apiFetch<{ pagination_info: PaginationInfo, results: ProjectMain[] }>('/project', { query: { list_params: { page: 0, page_size: 100 } } }),
   get: (id: string) => apiFetch<ProjectMain>(`/project/${id}`),
   create: (body: ProjectEdit) => apiFetch<{ id: string }>('/project', { method: 'POST', body }),
   update: (id: string, body: ProjectEdit) => apiFetch(`/project/${id}`, { method: 'PUT', body }),

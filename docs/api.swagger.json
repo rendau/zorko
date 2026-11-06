@@ -2735,6 +2735,13 @@
         },
         "password": {
           "type": "string"
+        },
+        "project_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          }
         }
       }
     },
@@ -2801,8 +2808,29 @@
         },
         "username": {
           "type": "string"
+        },
+        "project_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          },
+          "description": "проекты, которые видит участник; пусто — все проекты. Админу не ограничивает."
         }
       }
+    },
+    "zorko_v1UsrProjectIdList": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          }
+        }
+      },
+      "title": "UsrProjectIdList — обёртка списка проектов: не передан — список не меняется"
     },
     "zorko_v1UsrRefreshTokenReq": {
       "type": "object",
@@ -2829,6 +2857,9 @@
         },
         "password": {
           "type": "string"
+        },
+        "project_ids": {
+          "$ref": "#/definitions/zorko_v1UsrProjectIdList"
         }
       }
     },

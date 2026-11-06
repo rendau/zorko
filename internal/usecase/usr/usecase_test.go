@@ -6,9 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	projectModel "github.com/rendau/zorko/internal/domain/project/model"
 	sessionModel "github.com/rendau/zorko/internal/domain/session/model"
 	sessionService "github.com/rendau/zorko/internal/domain/session/service"
 	"github.com/rendau/zorko/internal/domain/usr/model"
@@ -88,6 +90,22 @@ func apply(v *model.Main, obj *model.Edit) {
 	if obj.Password != nil {
 		v.Password = *obj.Password
 	}
+	if obj.ProjectIds != nil {
+		v.ProjectIds = *obj.ProjectIds
+	}
+}
+
+// projectFake — существующие проекты: 1, 2, 3
+type projectFake struct{}
+
+func (projectFake) List(_ context.Context, pars *projectModel.ListReq) ([]*projectModel.Main, int64, error) {
+	result := []*projectModel.Main{}
+	for _, id := range lo.FromPtr(pars.IDs) {
+		if id >= 1 && id <= 3 {
+			result = append(result, &projectModel.Main{Id: id})
+		}
+	}
+	return result, int64(len(result)), nil
 }
 
 type env struct {
@@ -99,7 +117,7 @@ func newEnv() *env {
 	sessions := sessionService.New("test-secret")
 	repo := &repoFake{items: map[int64]*model.Main{}}
 	return &env{
-		uc:       New(usrService.New(repo), sessions, loginlimitService.New(5, time.Minute)),
+		uc:       New(usrService.New(repo), sessions, loginlimitService.New(5, time.Minute), projectFake{}),
 		sessions: sessions,
 	}
 }
@@ -205,6 +223,12 @@ func TestPermissions(t *testing.T) {
 
 	_, _, err = e.uc.List(context.Background(), &model.ListReq{})
 	assert.ErrorIs(t, err, errs.NotAuthorized)
+	_, _, err = e.uc.List(memberCtx, &model.ListReq{})
+	assert.ErrorIs(t, err, errs.NoPermission, "список людей — только админу")
+	_, err = e.uc.Get(memberCtx, adminId)
+	assert.ErrorIs(t, err, errs.NoPermission)
+	_, err = e.uc.GetProfile(memberCtx)
+	assert.NoError(t, err, "свой профиль — можно")
 
 	assert.ErrorIs(t, e.uc.Update(adminCtx, adminId, &model.Edit{IsAdmin: new(false)}), errs.UsrSelfChange)
 	assert.ErrorIs(t, e.uc.Update(adminCtx, adminId, &model.Edit{Active: new(false)}), errs.UsrSelfChange)
@@ -230,4 +254,29 @@ func TestValidation(t *testing.T) {
 	adminId, _ := e.uc.Create(context.Background(), &model.Edit{Username: new("admin"), Password: new("password-1")})
 	err := e.uc.UpdateProfile(e.as(adminId, true), &UpdateProfileReq{Password: new("new-pass-1"), CurrentPassword: new("wrong-current")})
 	assert.Error(t, err, "смена пароля требует текущий")
+}
+
+func TestProjectIds(t *testing.T) {
+	e := newEnv()
+	adminId, _ := e.uc.Create(context.Background(), &model.Edit{Username: new("admin"), Password: new("password-1")})
+	adminCtx := e.as(adminId, true)
+
+	id, err := e.uc.Create(adminCtx, &model.Edit{Username: new("oleg"), Password: new("password-1"), ProjectIds: new([]int64{2, 2, 9, 1})})
+	require.NoError(t, err)
+	oleg, err := e.uc.Get(adminCtx, id)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{2, 1}, oleg.ProjectIds, "без повторов и несуществующих")
+
+	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{Name: new("Олег")}))
+	oleg, _ = e.uc.Get(adminCtx, id)
+	assert.Equal(t, []int64{2, 1}, oleg.ProjectIds, "не передан — не меняется")
+
+	err = e.uc.Update(adminCtx, id, &model.Edit{ProjectIds: new([]int64{8, 9})})
+	full, ok := errs.AsErrFull(err)
+	require.True(t, ok)
+	assert.ErrorIs(t, full.Err, errs.ProjectNotFound, "все выбранные удалены — не превращаем в «все проекты»")
+
+	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{ProjectIds: new([]int64{})}))
+	oleg, _ = e.uc.Get(adminCtx, id)
+	assert.Empty(t, oleg.ProjectIds, "пустой список — все проекты")
 }

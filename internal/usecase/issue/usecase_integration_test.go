@@ -23,7 +23,10 @@ import (
 	projectService "github.com/rendau/zorko/internal/domain/project/service"
 	sessionModel "github.com/rendau/zorko/internal/domain/session/model"
 	sessionService "github.com/rendau/zorko/internal/domain/session/service"
+	usrRepoDb "github.com/rendau/zorko/internal/domain/usr/repo/db"
+	usrService "github.com/rendau/zorko/internal/domain/usr/service"
 	"github.com/rendau/zorko/internal/errs"
+	accessService "github.com/rendau/zorko/internal/service/access/service"
 	searchqueryService "github.com/rendau/zorko/internal/service/searchquery/service"
 	"github.com/rendau/zorko/internal/testutil"
 )
@@ -39,7 +42,19 @@ func TestList(t *testing.T) {
 	issues := issueService.New(issueRepoDb.New(pool))
 	write := eventService.New(eventRepoCh.New(conn))
 	sessions := sessionService.New("s")
-	uc := New(sessions, projectService.New(projectRepoDb.New(pool)), issues, eventService.NewRead(eventRepoCh.New(conn)), searchqueryService.New())
+	access := accessService.New(sessions, usrService.New(usrRepoDb.New(pool)))
+	uc := New(sessions, projectService.New(projectRepoDb.New(pool)), issues, eventService.NewRead(eventRepoCh.New(conn)), searchqueryService.New(), access)
+
+	// люди: участник без списка (все проекты) и участник с чужим проектом
+	otherProjectId := testutil.NewProject(t, pool)
+	newUsr := func(projectIds []int64) int64 {
+		var id int64
+		require.NoError(t, pool.QueryRow(ctx, `insert into usr (username, project_ids) values ($1, $2) returning id`,
+			"u-"+uuid.NewString(), projectIds).Scan(&id))
+		t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `delete from usr where id = $1`, id) })
+		return id
+	}
+	allUsrId, strangerId := newUsr([]int64{}), newUsr([]int64{otherProjectId})
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	minute := now.Truncate(time.Minute)
@@ -73,7 +88,8 @@ func TestList(t *testing.T) {
 	add(safari, 4, "Safari", time.Hour)
 	require.NoError(t, write.Store(ctx, evs, nil))
 
-	authCtx := sessions.WithContext(ctx, &sessionModel.Session{Id: 1})
+	authCtx := sessions.WithContext(ctx, &sessionModel.Session{Id: allUsrId})
+	strangerCtx := sessions.WithContext(ctx, &sessionModel.Session{Id: strangerId})
 	list := func(sort, q string) []int64 {
 		rep, err := uc.List(authCtx, &ListReq{
 			ListParams: commonModel.ListParams{PageSize: 50},
@@ -110,6 +126,15 @@ func TestList(t *testing.T) {
 
 	_, err = uc.List(ctx, &ListReq{ListParams: commonModel.ListParams{PageSize: 50}, Scope: Scope{OrgId: orgId}})
 	assert.ErrorIs(t, err, errs.NotAuthorized)
+
+	// участник с другим проектом: чужих проблем не видит ни списком, ни по номеру
+	rep, err = uc.List(strangerCtx, &ListReq{ListParams: commonModel.ListParams{PageSize: 50}, Scope: Scope{OrgId: orgId}})
+	require.NoError(t, err)
+	assert.Empty(t, rep.Items)
+	_, err = uc.Get(strangerCtx, oldFrequent, "24h", "")
+	assert.ErrorIs(t, err, errs.NoPermission)
+	_, err = uc.GetEvent(strangerCtx, oldFrequent, "latest")
+	assert.ErrorIs(t, err, errs.NoPermission)
 
 	// карточка и ряд
 	got, err := uc.Get(authCtx, oldFrequent, "24h", "")

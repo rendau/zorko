@@ -1,5 +1,5 @@
 import type { ListParams, PaginationInfo } from '~/types/common'
-import type { TokenPair, UsrEdit, UsrMain } from '~/types/usr'
+import type { TokenPair, UsrCreate, UsrMain, UsrUpdate } from '~/types/usr'
 
 export const usrApi = {
   bootstrapStatus: () => apiFetch<{ bootstrap_required: boolean }>('/usr/bootstrap/status'),
@@ -8,7 +8,7 @@ export const usrApi = {
   updateProfile: (body: { name?: string, username?: string, password?: string, current_password?: string }) =>
     apiFetch('/usr/profile', { method: 'PUT', body }),
   list: (list_params: ListParams) => apiFetch<{ pagination_info: PaginationInfo, results: UsrMain[] }>('/usr', { query: { list_params: { ...list_params, sort: undefined } } }),
-  create: (body: UsrEdit) => apiFetch<{ id: string }>('/usr', { method: 'POST', body }),
-  update: (id: string, body: UsrEdit) => apiFetch(`/usr/${id}`, { method: 'PUT', body }),
+  create: (body: UsrCreate) => apiFetch<{ id: string }>('/usr', { method: 'POST', body }),
+  update: (id: string, body: UsrUpdate) => apiFetch(`/usr/${id}`, { method: 'PUT', body }),
   remove: (id: string) => apiFetch(`/usr/${id}`, { method: 'DELETE' }),
 }

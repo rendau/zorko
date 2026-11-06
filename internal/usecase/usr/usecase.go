@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/samber/lo"
+
+	projectModel "github.com/rendau/zorko/internal/domain/project/model"
 	"github.com/rendau/zorko/internal/domain/usr/model"
 	"github.com/rendau/zorko/internal/errs"
 	"github.com/rendau/zorko/internal/util"
@@ -23,10 +27,11 @@ type Usecase struct {
 	svc          ServiceI
 	sessionSvc   SessionServiceI
 	loginLimiter LoginLimiterI
+	projectSvc   ProjectServiceI
 }
 
-func New(svc ServiceI, sessionSvc SessionServiceI, loginLimiter LoginLimiterI) *Usecase {
-	return &Usecase{svc: svc, sessionSvc: sessionSvc, loginLimiter: loginLimiter}
+func New(svc ServiceI, sessionSvc SessionServiceI, loginLimiter LoginLimiterI, projectSvc ProjectServiceI) *Usecase {
+	return &Usecase{svc: svc, sessionSvc: sessionSvc, loginLimiter: loginLimiter, projectSvc: projectSvc}
 }
 
 // Login — пара токенов. Не больше 5 неудачных попыток в минуту на логин и на IP.
@@ -135,9 +140,13 @@ func (u *Usecase) UpdateProfile(ctx context.Context, req *UpdateProfileReq) erro
 	return nil
 }
 
+// List — админ: участнику список людей не нужен (свой профиль — GetProfile)
 func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main, int64, error) {
 	if !u.sessionSvc.CtxIsAuthorized(ctx) {
 		return nil, 0, errs.NotAuthorized
+	}
+	if !u.sessionSvc.CtxIsAdmin(ctx) {
+		return nil, 0, errs.NoPermission
 	}
 	if err := util.RequirePageSize(pars.ListParams, 0); err != nil {
 		return nil, 0, err
@@ -152,6 +161,9 @@ func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main,
 func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
 	if !u.sessionSvc.CtxIsAuthorized(ctx) {
 		return nil, errs.NotAuthorized
+	}
+	if !u.sessionSvc.CtxIsAdmin(ctx) {
+		return nil, errs.NoPermission
 	}
 	result, _, err := u.svc.Get(ctx, id, true)
 	if err != nil {
@@ -182,6 +194,9 @@ func (u *Usecase) Create(ctx context.Context, obj *model.Edit) (int64, error) {
 	if err := u.validateEdit(obj, true); err != nil {
 		return 0, err
 	}
+	if err := u.normalizeProjectIds(ctx, obj); err != nil {
+		return 0, err
+	}
 
 	newId, err := u.svc.Create(ctx, obj)
 	if err != nil {
@@ -203,6 +218,9 @@ func (u *Usecase) Update(ctx context.Context, id int64, obj *model.Edit) error {
 		return errs.UsrSelfChange
 	}
 	if err := u.validateEdit(obj, false); err != nil {
+		return err
+	}
+	if err := u.normalizeProjectIds(ctx, obj); err != nil {
 		return err
 	}
 	if err := u.svc.Update(ctx, id, obj); err != nil {
@@ -257,6 +275,28 @@ func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
 			return errs.ErrFull{Err: errs.InvalidRequest, Desc: "password: 8 chars minimum, 72 bytes maximum", Fields: map[string]string{"password": "invalid"}}
 		}
 	}
+	return nil
+}
+
+// normalizeProjectIds — без повторов и удалённых проектов. Если выбранные проекты все удалены,
+// пустой список не сохраняется: он значил бы «все проекты».
+func (u *Usecase) normalizeProjectIds(ctx context.Context, obj *model.Edit) error {
+	if obj.ProjectIds == nil {
+		return nil
+	}
+	ids := lo.Uniq(lo.Filter(*obj.ProjectIds, func(id int64, _ int) bool { return id > 0 }))
+	if len(ids) > 0 {
+		projects, _, err := u.projectSvc.List(ctx, &projectModel.ListReq{IDs: &ids})
+		if err != nil {
+			return fmt.Errorf("projectSvc.List: %w", err)
+		}
+		existing := lo.Map(projects, func(p *projectModel.Main, _ int) int64 { return p.Id })
+		ids = lo.Filter(ids, func(id int64, _ int) bool { return slices.Contains(existing, id) })
+		if len(ids) == 0 {
+			return errs.ErrFull{Err: errs.ProjectNotFound, Desc: "project_ids: selected projects no longer exist", Fields: map[string]string{"project_ids": "invalid"}}
+		}
+	}
+	obj.ProjectIds = &ids
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	issueModel "github.com/rendau/zorko/internal/domain/issue/model"
 	projectModel "github.com/rendau/zorko/internal/domain/project/model"
+	accessModel "github.com/rendau/zorko/internal/service/access/model"
 	searchqueryModel "github.com/rendau/zorko/internal/service/searchquery/model"
 )
 
@@ -37,4 +38,9 @@ type EventReadServiceI interface {
 
 type QueryParserI interface {
 	Parse(q string) (*searchqueryModel.Query, error)
+}
+
+type AccessServiceI interface {
+	ProjectAccess(ctx context.Context) (*accessModel.ProjectAccess, error)
+	CheckProject(ctx context.Context, projectId int64) error
 }

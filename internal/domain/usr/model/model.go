@@ -16,6 +16,8 @@ type Main struct {
 	Name       string
 	Username   string
 	Password   string // bcrypt-хеш; наружу не отдаётся
+	// ProjectIds — проекты, которые видит участник; пусто — все. Админу не ограничивает.
+	ProjectIds []int64
 }
 
 // Edit — мутация (partial create/update); Password — открытый пароль, хешируется в domain service
@@ -27,6 +29,7 @@ type Edit struct {
 	Name       *string
 	Username   *string
 	Password   *string
+	ProjectIds *[]int64
 }
 
 // ListReq — параметры выборки

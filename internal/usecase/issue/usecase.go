@@ -34,10 +34,11 @@ type Usecase struct {
 	issueSvc   IssueServiceI
 	eventSvc   EventReadServiceI
 	parser     QueryParserI
+	accessSvc  AccessServiceI
 }
 
-func New(sessionSvc SessionServiceI, projectSvc ProjectServiceI, issueSvc IssueServiceI, eventSvc EventReadServiceI, parser QueryParserI) *Usecase {
-	return &Usecase{sessionSvc: sessionSvc, projectSvc: projectSvc, issueSvc: issueSvc, eventSvc: eventSvc, parser: parser}
+func New(sessionSvc SessionServiceI, projectSvc ProjectServiceI, issueSvc IssueServiceI, eventSvc EventReadServiceI, parser QueryParserI, accessSvc AccessServiceI) *Usecase {
+	return &Usecase{sessionSvc: sessionSvc, projectSvc: projectSvc, issueSvc: issueSvc, eventSvc: eventSvc, parser: parser, accessSvc: accessSvc}
 }
 
 // List — проблемы с событиями за период (ADR-006): агрегат ClickHouse + строки Postgres,
@@ -219,6 +220,9 @@ func (u *Usecase) GetEvent(ctx context.Context, issueId int64, eventId string) (
 	if err != nil {
 		return nil, fmt.Errorf("issueSvc.Get: %w", err)
 	}
+	if err = u.accessSvc.CheckProject(ctx, issue.ProjectId); err != nil {
+		return nil, err
+	}
 
 	result, err := u.eventSvc.GetEvent(ctx, issue.ProjectId, issue.Id, eventId)
 	if err != nil {
@@ -285,6 +289,12 @@ func (u *Usecase) filter(ctx context.Context, scope Scope, query string, defPeri
 		// только проекты этой организации
 		projectIds = lo.Intersect(projectIds, scope.ProjectIds)
 	}
+	// участник — только свои проекты
+	access, err := u.accessSvc.ProjectAccess(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	projectIds = access.Filter(projectIds)
 
 	now := time.Now().UTC()
 	return &eventModel.StatFilter{
@@ -308,6 +318,9 @@ func (u *Usecase) issueFilter(ctx context.Context, id int64, period, environment
 	issue, _, err := u.issueSvc.Get(ctx, id, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("issueSvc.Get: %w", err)
+	}
+	if err = u.accessSvc.CheckProject(ctx, issue.ProjectId); err != nil {
+		return nil, nil, err
 	}
 
 	d, err := util.ParsePeriod(period, defPeriod)

@@ -21,6 +21,9 @@ func (r *Repo) getConditions(pars *model.ListReq) (map[string]any, map[string][]
 	if pars.ProjectId != nil {
 		conditions["project_id"] = *pars.ProjectId
 	}
+	if pars.ProjectIds != nil {
+		conditionExps["project_id = any(?)"] = []any{*pars.ProjectIds}
+	}
 	if pars.Active != nil {
 		conditions["active"] = *pars.Active
 	}

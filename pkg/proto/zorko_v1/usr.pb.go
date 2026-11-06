@@ -26,14 +26,16 @@ const (
 )
 
 type UsrMain struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	ModifiedAt    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=modified_at,json=modifiedAt,proto3" json:"modified_at,omitempty"`
-	Active        bool                   `protobuf:"varint,4,opt,name=active,proto3" json:"active,omitempty"`
-	IsAdmin       bool                   `protobuf:"varint,5,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
-	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Username      string                 `protobuf:"bytes,7,opt,name=username,proto3" json:"username,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	CreatedAt  *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ModifiedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=modified_at,json=modifiedAt,proto3" json:"modified_at,omitempty"`
+	Active     bool                   `protobuf:"varint,4,opt,name=active,proto3" json:"active,omitempty"`
+	IsAdmin    bool                   `protobuf:"varint,5,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
+	Name       string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Username   string                 `protobuf:"bytes,7,opt,name=username,proto3" json:"username,omitempty"`
+	// проекты, которые видит участник; пусто — все проекты. Админу не ограничивает.
+	ProjectIds    []int64 `protobuf:"varint,8,rep,packed,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -117,6 +119,58 @@ func (x *UsrMain) GetUsername() string {
 	return ""
 }
 
+func (x *UsrMain) GetProjectIds() []int64 {
+	if x != nil {
+		return x.ProjectIds
+	}
+	return nil
+}
+
+// UsrProjectIdList — обёртка списка проектов: не передан — список не меняется
+type UsrProjectIdList struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []int64                `protobuf:"varint,1,rep,packed,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UsrProjectIdList) Reset() {
+	*x = UsrProjectIdList{}
+	mi := &file_zorko_v1_usr_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsrProjectIdList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsrProjectIdList) ProtoMessage() {}
+
+func (x *UsrProjectIdList) ProtoReflect() protoreflect.Message {
+	mi := &file_zorko_v1_usr_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UsrProjectIdList.ProtoReflect.Descriptor instead.
+func (*UsrProjectIdList) Descriptor() ([]byte, []int) {
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *UsrProjectIdList) GetValues() []int64 {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 type UsrListReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ListParams    *common.ListParamsSt   `protobuf:"bytes,1,opt,name=list_params,json=listParams,proto3" json:"list_params,omitempty"`
@@ -128,7 +182,7 @@ type UsrListReq struct {
 
 func (x *UsrListReq) Reset() {
 	*x = UsrListReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[1]
+	mi := &file_zorko_v1_usr_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -140,7 +194,7 @@ func (x *UsrListReq) String() string {
 func (*UsrListReq) ProtoMessage() {}
 
 func (x *UsrListReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[1]
+	mi := &file_zorko_v1_usr_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -153,7 +207,7 @@ func (x *UsrListReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrListReq.ProtoReflect.Descriptor instead.
 func (*UsrListReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{1}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *UsrListReq) GetListParams() *common.ListParamsSt {
@@ -187,7 +241,7 @@ type UsrListRep struct {
 
 func (x *UsrListRep) Reset() {
 	*x = UsrListRep{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[2]
+	mi := &file_zorko_v1_usr_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -199,7 +253,7 @@ func (x *UsrListRep) String() string {
 func (*UsrListRep) ProtoMessage() {}
 
 func (x *UsrListRep) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[2]
+	mi := &file_zorko_v1_usr_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -212,7 +266,7 @@ func (x *UsrListRep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrListRep.ProtoReflect.Descriptor instead.
 func (*UsrListRep) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{2}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UsrListRep) GetPaginationInfo() *common.PaginationInfoSt {
@@ -238,7 +292,7 @@ type UsrGetReq struct {
 
 func (x *UsrGetReq) Reset() {
 	*x = UsrGetReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[3]
+	mi := &file_zorko_v1_usr_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -250,7 +304,7 @@ func (x *UsrGetReq) String() string {
 func (*UsrGetReq) ProtoMessage() {}
 
 func (x *UsrGetReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[3]
+	mi := &file_zorko_v1_usr_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -263,7 +317,7 @@ func (x *UsrGetReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrGetReq.ProtoReflect.Descriptor instead.
 func (*UsrGetReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{3}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *UsrGetReq) GetId() int64 {
@@ -280,13 +334,14 @@ type UsrCreateReq struct {
 	Name          *string                `protobuf:"bytes,3,opt,name=name,proto3,oneof" json:"name,omitempty"`
 	Username      *string                `protobuf:"bytes,4,opt,name=username,proto3,oneof" json:"username,omitempty"`
 	Password      *string                `protobuf:"bytes,5,opt,name=password,proto3,oneof" json:"password,omitempty"`
+	ProjectIds    []int64                `protobuf:"varint,6,rep,packed,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UsrCreateReq) Reset() {
 	*x = UsrCreateReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[4]
+	mi := &file_zorko_v1_usr_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -298,7 +353,7 @@ func (x *UsrCreateReq) String() string {
 func (*UsrCreateReq) ProtoMessage() {}
 
 func (x *UsrCreateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[4]
+	mi := &file_zorko_v1_usr_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -311,7 +366,7 @@ func (x *UsrCreateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrCreateReq.ProtoReflect.Descriptor instead.
 func (*UsrCreateReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{4}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UsrCreateReq) GetActive() bool {
@@ -349,6 +404,13 @@ func (x *UsrCreateReq) GetPassword() string {
 	return ""
 }
 
+func (x *UsrCreateReq) GetProjectIds() []int64 {
+	if x != nil {
+		return x.ProjectIds
+	}
+	return nil
+}
+
 type UsrCreateRep struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -358,7 +420,7 @@ type UsrCreateRep struct {
 
 func (x *UsrCreateRep) Reset() {
 	*x = UsrCreateRep{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[5]
+	mi := &file_zorko_v1_usr_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +432,7 @@ func (x *UsrCreateRep) String() string {
 func (*UsrCreateRep) ProtoMessage() {}
 
 func (x *UsrCreateRep) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[5]
+	mi := &file_zorko_v1_usr_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +445,7 @@ func (x *UsrCreateRep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrCreateRep.ProtoReflect.Descriptor instead.
 func (*UsrCreateRep) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{5}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UsrCreateRep) GetId() int64 {
@@ -401,13 +463,14 @@ type UsrUpdateReq struct {
 	Name          *string                `protobuf:"bytes,4,opt,name=name,proto3,oneof" json:"name,omitempty"`
 	Username      *string                `protobuf:"bytes,5,opt,name=username,proto3,oneof" json:"username,omitempty"`
 	Password      *string                `protobuf:"bytes,6,opt,name=password,proto3,oneof" json:"password,omitempty"`
+	ProjectIds    *UsrProjectIdList      `protobuf:"bytes,7,opt,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UsrUpdateReq) Reset() {
 	*x = UsrUpdateReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[6]
+	mi := &file_zorko_v1_usr_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -419,7 +482,7 @@ func (x *UsrUpdateReq) String() string {
 func (*UsrUpdateReq) ProtoMessage() {}
 
 func (x *UsrUpdateReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[6]
+	mi := &file_zorko_v1_usr_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -432,7 +495,7 @@ func (x *UsrUpdateReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrUpdateReq.ProtoReflect.Descriptor instead.
 func (*UsrUpdateReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{6}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UsrUpdateReq) GetId() int64 {
@@ -477,6 +540,13 @@ func (x *UsrUpdateReq) GetPassword() string {
 	return ""
 }
 
+func (x *UsrUpdateReq) GetProjectIds() *UsrProjectIdList {
+	if x != nil {
+		return x.ProjectIds
+	}
+	return nil
+}
+
 type UsrLoginReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -487,7 +557,7 @@ type UsrLoginReq struct {
 
 func (x *UsrLoginReq) Reset() {
 	*x = UsrLoginReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[7]
+	mi := &file_zorko_v1_usr_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -499,7 +569,7 @@ func (x *UsrLoginReq) String() string {
 func (*UsrLoginReq) ProtoMessage() {}
 
 func (x *UsrLoginReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[7]
+	mi := &file_zorko_v1_usr_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -512,7 +582,7 @@ func (x *UsrLoginReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrLoginReq.ProtoReflect.Descriptor instead.
 func (*UsrLoginReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{7}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UsrLoginReq) GetUsername() string {
@@ -539,7 +609,7 @@ type UsrLoginRep struct {
 
 func (x *UsrLoginRep) Reset() {
 	*x = UsrLoginRep{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[8]
+	mi := &file_zorko_v1_usr_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -551,7 +621,7 @@ func (x *UsrLoginRep) String() string {
 func (*UsrLoginRep) ProtoMessage() {}
 
 func (x *UsrLoginRep) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[8]
+	mi := &file_zorko_v1_usr_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -564,7 +634,7 @@ func (x *UsrLoginRep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrLoginRep.ProtoReflect.Descriptor instead.
 func (*UsrLoginRep) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{8}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UsrLoginRep) GetJwt() string {
@@ -590,7 +660,7 @@ type UsrRefreshTokenReq struct {
 
 func (x *UsrRefreshTokenReq) Reset() {
 	*x = UsrRefreshTokenReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[9]
+	mi := &file_zorko_v1_usr_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -602,7 +672,7 @@ func (x *UsrRefreshTokenReq) String() string {
 func (*UsrRefreshTokenReq) ProtoMessage() {}
 
 func (x *UsrRefreshTokenReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[9]
+	mi := &file_zorko_v1_usr_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -615,7 +685,7 @@ func (x *UsrRefreshTokenReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrRefreshTokenReq.ProtoReflect.Descriptor instead.
 func (*UsrRefreshTokenReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{9}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UsrRefreshTokenReq) GetRefreshToken() string {
@@ -634,7 +704,7 @@ type UsrBootstrapStatusRep struct {
 
 func (x *UsrBootstrapStatusRep) Reset() {
 	*x = UsrBootstrapStatusRep{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[10]
+	mi := &file_zorko_v1_usr_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -646,7 +716,7 @@ func (x *UsrBootstrapStatusRep) String() string {
 func (*UsrBootstrapStatusRep) ProtoMessage() {}
 
 func (x *UsrBootstrapStatusRep) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[10]
+	mi := &file_zorko_v1_usr_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -659,7 +729,7 @@ func (x *UsrBootstrapStatusRep) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrBootstrapStatusRep.ProtoReflect.Descriptor instead.
 func (*UsrBootstrapStatusRep) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{10}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UsrBootstrapStatusRep) GetBootstrapRequired() bool {
@@ -681,7 +751,7 @@ type UsrUpdateProfileReq struct {
 
 func (x *UsrUpdateProfileReq) Reset() {
 	*x = UsrUpdateProfileReq{}
-	mi := &file_zorko_v1_usr_proto_msgTypes[11]
+	mi := &file_zorko_v1_usr_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -693,7 +763,7 @@ func (x *UsrUpdateProfileReq) String() string {
 func (*UsrUpdateProfileReq) ProtoMessage() {}
 
 func (x *UsrUpdateProfileReq) ProtoReflect() protoreflect.Message {
-	mi := &file_zorko_v1_usr_proto_msgTypes[11]
+	mi := &file_zorko_v1_usr_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -706,7 +776,7 @@ func (x *UsrUpdateProfileReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsrUpdateProfileReq.ProtoReflect.Descriptor instead.
 func (*UsrUpdateProfileReq) Descriptor() ([]byte, []int) {
-	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{11}
+	return file_zorko_v1_usr_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UsrUpdateProfileReq) GetName() string {
@@ -741,7 +811,7 @@ var File_zorko_v1_usr_proto protoreflect.FileDescriptor
 
 const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\n" +
-	"\x12zorko_v1/usr.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\xf4\x01\n" +
+	"\x12zorko_v1/usr.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\x95\x02\n" +
 	"\aUsrMain\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x129\n" +
 	"\n" +
@@ -751,7 +821,11 @@ const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\x06active\x18\x04 \x01(\bR\x06active\x12\x19\n" +
 	"\bis_admin\x18\x05 \x01(\bR\aisAdmin\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12\x1a\n" +
-	"\busername\x18\a \x01(\tR\busername\"}\n" +
+	"\busername\x18\a \x01(\tR\busername\x12\x1f\n" +
+	"\vproject_ids\x18\b \x03(\x03R\n" +
+	"projectIds\"*\n" +
+	"\x10UsrProjectIdList\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\x03R\x06values\"}\n" +
 	"\n" +
 	"UsrListReq\x125\n" +
 	"\vlist_params\x18\x01 \x01(\v2\x14.common.ListParamsStR\n" +
@@ -764,27 +838,31 @@ const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\x0fpagination_info\x18\x01 \x01(\v2\x18.common.PaginationInfoStR\x0epaginationInfo\x12+\n" +
 	"\aresults\x18\x02 \x03(\v2\x11.zorko_v1.UsrMainR\aresults\"\x1b\n" +
 	"\tUsrGetReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\xe1\x01\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x82\x02\n" +
 	"\fUsrCreateReq\x12\x1b\n" +
 	"\x06active\x18\x01 \x01(\bH\x00R\x06active\x88\x01\x01\x12\x1e\n" +
 	"\bis_admin\x18\x02 \x01(\bH\x01R\aisAdmin\x88\x01\x01\x12\x17\n" +
 	"\x04name\x18\x03 \x01(\tH\x02R\x04name\x88\x01\x01\x12\x1f\n" +
 	"\busername\x18\x04 \x01(\tH\x03R\busername\x88\x01\x01\x12\x1f\n" +
-	"\bpassword\x18\x05 \x01(\tH\x04R\bpassword\x88\x01\x01B\t\n" +
+	"\bpassword\x18\x05 \x01(\tH\x04R\bpassword\x88\x01\x01\x12\x1f\n" +
+	"\vproject_ids\x18\x06 \x03(\x03R\n" +
+	"projectIdsB\t\n" +
 	"\a_activeB\v\n" +
 	"\t_is_adminB\a\n" +
 	"\x05_nameB\v\n" +
 	"\t_usernameB\v\n" +
 	"\t_password\"\x1e\n" +
 	"\fUsrCreateRep\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\xf1\x01\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xae\x02\n" +
 	"\fUsrUpdateReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1b\n" +
 	"\x06active\x18\x02 \x01(\bH\x00R\x06active\x88\x01\x01\x12\x1e\n" +
 	"\bis_admin\x18\x03 \x01(\bH\x01R\aisAdmin\x88\x01\x01\x12\x17\n" +
 	"\x04name\x18\x04 \x01(\tH\x02R\x04name\x88\x01\x01\x12\x1f\n" +
 	"\busername\x18\x05 \x01(\tH\x03R\busername\x88\x01\x01\x12\x1f\n" +
-	"\bpassword\x18\x06 \x01(\tH\x04R\bpassword\x88\x01\x01B\t\n" +
+	"\bpassword\x18\x06 \x01(\tH\x04R\bpassword\x88\x01\x01\x12;\n" +
+	"\vproject_ids\x18\a \x01(\v2\x1a.zorko_v1.UsrProjectIdListR\n" +
+	"projectIdsB\t\n" +
 	"\a_activeB\v\n" +
 	"\t_is_adminB\a\n" +
 	"\x05_nameB\v\n" +
@@ -836,56 +914,58 @@ func file_zorko_v1_usr_proto_rawDescGZIP() []byte {
 	return file_zorko_v1_usr_proto_rawDescData
 }
 
-var file_zorko_v1_usr_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_zorko_v1_usr_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_zorko_v1_usr_proto_goTypes = []any{
 	(*UsrMain)(nil),                 // 0: zorko_v1.UsrMain
-	(*UsrListReq)(nil),              // 1: zorko_v1.UsrListReq
-	(*UsrListRep)(nil),              // 2: zorko_v1.UsrListRep
-	(*UsrGetReq)(nil),               // 3: zorko_v1.UsrGetReq
-	(*UsrCreateReq)(nil),            // 4: zorko_v1.UsrCreateReq
-	(*UsrCreateRep)(nil),            // 5: zorko_v1.UsrCreateRep
-	(*UsrUpdateReq)(nil),            // 6: zorko_v1.UsrUpdateReq
-	(*UsrLoginReq)(nil),             // 7: zorko_v1.UsrLoginReq
-	(*UsrLoginRep)(nil),             // 8: zorko_v1.UsrLoginRep
-	(*UsrRefreshTokenReq)(nil),      // 9: zorko_v1.UsrRefreshTokenReq
-	(*UsrBootstrapStatusRep)(nil),   // 10: zorko_v1.UsrBootstrapStatusRep
-	(*UsrUpdateProfileReq)(nil),     // 11: zorko_v1.UsrUpdateProfileReq
-	(*timestamppb.Timestamp)(nil),   // 12: google.protobuf.Timestamp
-	(*common.ListParamsSt)(nil),     // 13: common.ListParamsSt
-	(*common.PaginationInfoSt)(nil), // 14: common.PaginationInfoSt
-	(*emptypb.Empty)(nil),           // 15: google.protobuf.Empty
+	(*UsrProjectIdList)(nil),        // 1: zorko_v1.UsrProjectIdList
+	(*UsrListReq)(nil),              // 2: zorko_v1.UsrListReq
+	(*UsrListRep)(nil),              // 3: zorko_v1.UsrListRep
+	(*UsrGetReq)(nil),               // 4: zorko_v1.UsrGetReq
+	(*UsrCreateReq)(nil),            // 5: zorko_v1.UsrCreateReq
+	(*UsrCreateRep)(nil),            // 6: zorko_v1.UsrCreateRep
+	(*UsrUpdateReq)(nil),            // 7: zorko_v1.UsrUpdateReq
+	(*UsrLoginReq)(nil),             // 8: zorko_v1.UsrLoginReq
+	(*UsrLoginRep)(nil),             // 9: zorko_v1.UsrLoginRep
+	(*UsrRefreshTokenReq)(nil),      // 10: zorko_v1.UsrRefreshTokenReq
+	(*UsrBootstrapStatusRep)(nil),   // 11: zorko_v1.UsrBootstrapStatusRep
+	(*UsrUpdateProfileReq)(nil),     // 12: zorko_v1.UsrUpdateProfileReq
+	(*timestamppb.Timestamp)(nil),   // 13: google.protobuf.Timestamp
+	(*common.ListParamsSt)(nil),     // 14: common.ListParamsSt
+	(*common.PaginationInfoSt)(nil), // 15: common.PaginationInfoSt
+	(*emptypb.Empty)(nil),           // 16: google.protobuf.Empty
 }
 var file_zorko_v1_usr_proto_depIdxs = []int32{
-	12, // 0: zorko_v1.UsrMain.created_at:type_name -> google.protobuf.Timestamp
-	12, // 1: zorko_v1.UsrMain.modified_at:type_name -> google.protobuf.Timestamp
-	13, // 2: zorko_v1.UsrListReq.list_params:type_name -> common.ListParamsSt
-	14, // 3: zorko_v1.UsrListRep.pagination_info:type_name -> common.PaginationInfoSt
+	13, // 0: zorko_v1.UsrMain.created_at:type_name -> google.protobuf.Timestamp
+	13, // 1: zorko_v1.UsrMain.modified_at:type_name -> google.protobuf.Timestamp
+	14, // 2: zorko_v1.UsrListReq.list_params:type_name -> common.ListParamsSt
+	15, // 3: zorko_v1.UsrListRep.pagination_info:type_name -> common.PaginationInfoSt
 	0,  // 4: zorko_v1.UsrListRep.results:type_name -> zorko_v1.UsrMain
-	1,  // 5: zorko_v1.UsrService.List:input_type -> zorko_v1.UsrListReq
-	3,  // 6: zorko_v1.UsrService.Get:input_type -> zorko_v1.UsrGetReq
-	4,  // 7: zorko_v1.UsrService.Create:input_type -> zorko_v1.UsrCreateReq
-	6,  // 8: zorko_v1.UsrService.Update:input_type -> zorko_v1.UsrUpdateReq
-	3,  // 9: zorko_v1.UsrService.Delete:input_type -> zorko_v1.UsrGetReq
-	7,  // 10: zorko_v1.UsrService.Login:input_type -> zorko_v1.UsrLoginReq
-	9,  // 11: zorko_v1.UsrService.RefreshToken:input_type -> zorko_v1.UsrRefreshTokenReq
-	15, // 12: zorko_v1.UsrService.BootstrapStatus:input_type -> google.protobuf.Empty
-	15, // 13: zorko_v1.UsrService.GetProfile:input_type -> google.protobuf.Empty
-	11, // 14: zorko_v1.UsrService.UpdateProfile:input_type -> zorko_v1.UsrUpdateProfileReq
-	2,  // 15: zorko_v1.UsrService.List:output_type -> zorko_v1.UsrListRep
-	0,  // 16: zorko_v1.UsrService.Get:output_type -> zorko_v1.UsrMain
-	5,  // 17: zorko_v1.UsrService.Create:output_type -> zorko_v1.UsrCreateRep
-	15, // 18: zorko_v1.UsrService.Update:output_type -> google.protobuf.Empty
-	15, // 19: zorko_v1.UsrService.Delete:output_type -> google.protobuf.Empty
-	8,  // 20: zorko_v1.UsrService.Login:output_type -> zorko_v1.UsrLoginRep
-	8,  // 21: zorko_v1.UsrService.RefreshToken:output_type -> zorko_v1.UsrLoginRep
-	10, // 22: zorko_v1.UsrService.BootstrapStatus:output_type -> zorko_v1.UsrBootstrapStatusRep
-	0,  // 23: zorko_v1.UsrService.GetProfile:output_type -> zorko_v1.UsrMain
-	15, // 24: zorko_v1.UsrService.UpdateProfile:output_type -> google.protobuf.Empty
-	15, // [15:25] is the sub-list for method output_type
-	5,  // [5:15] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	1,  // 5: zorko_v1.UsrUpdateReq.project_ids:type_name -> zorko_v1.UsrProjectIdList
+	2,  // 6: zorko_v1.UsrService.List:input_type -> zorko_v1.UsrListReq
+	4,  // 7: zorko_v1.UsrService.Get:input_type -> zorko_v1.UsrGetReq
+	5,  // 8: zorko_v1.UsrService.Create:input_type -> zorko_v1.UsrCreateReq
+	7,  // 9: zorko_v1.UsrService.Update:input_type -> zorko_v1.UsrUpdateReq
+	4,  // 10: zorko_v1.UsrService.Delete:input_type -> zorko_v1.UsrGetReq
+	8,  // 11: zorko_v1.UsrService.Login:input_type -> zorko_v1.UsrLoginReq
+	10, // 12: zorko_v1.UsrService.RefreshToken:input_type -> zorko_v1.UsrRefreshTokenReq
+	16, // 13: zorko_v1.UsrService.BootstrapStatus:input_type -> google.protobuf.Empty
+	16, // 14: zorko_v1.UsrService.GetProfile:input_type -> google.protobuf.Empty
+	12, // 15: zorko_v1.UsrService.UpdateProfile:input_type -> zorko_v1.UsrUpdateProfileReq
+	3,  // 16: zorko_v1.UsrService.List:output_type -> zorko_v1.UsrListRep
+	0,  // 17: zorko_v1.UsrService.Get:output_type -> zorko_v1.UsrMain
+	6,  // 18: zorko_v1.UsrService.Create:output_type -> zorko_v1.UsrCreateRep
+	16, // 19: zorko_v1.UsrService.Update:output_type -> google.protobuf.Empty
+	16, // 20: zorko_v1.UsrService.Delete:output_type -> google.protobuf.Empty
+	9,  // 21: zorko_v1.UsrService.Login:output_type -> zorko_v1.UsrLoginRep
+	9,  // 22: zorko_v1.UsrService.RefreshToken:output_type -> zorko_v1.UsrLoginRep
+	11, // 23: zorko_v1.UsrService.BootstrapStatus:output_type -> zorko_v1.UsrBootstrapStatusRep
+	0,  // 24: zorko_v1.UsrService.GetProfile:output_type -> zorko_v1.UsrMain
+	16, // 25: zorko_v1.UsrService.UpdateProfile:output_type -> google.protobuf.Empty
+	16, // [16:26] is the sub-list for method output_type
+	6,  // [6:16] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_zorko_v1_usr_proto_init() }
@@ -893,17 +973,17 @@ func file_zorko_v1_usr_proto_init() {
 	if File_zorko_v1_usr_proto != nil {
 		return
 	}
-	file_zorko_v1_usr_proto_msgTypes[1].OneofWrappers = []any{}
-	file_zorko_v1_usr_proto_msgTypes[4].OneofWrappers = []any{}
-	file_zorko_v1_usr_proto_msgTypes[6].OneofWrappers = []any{}
-	file_zorko_v1_usr_proto_msgTypes[11].OneofWrappers = []any{}
+	file_zorko_v1_usr_proto_msgTypes[2].OneofWrappers = []any{}
+	file_zorko_v1_usr_proto_msgTypes[5].OneofWrappers = []any{}
+	file_zorko_v1_usr_proto_msgTypes[7].OneofWrappers = []any{}
+	file_zorko_v1_usr_proto_msgTypes[12].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_zorko_v1_usr_proto_rawDesc), len(file_zorko_v1_usr_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

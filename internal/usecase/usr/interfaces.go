@@ -3,6 +3,7 @@ package usr
 import (
 	"context"
 
+	projectModel "github.com/rendau/zorko/internal/domain/project/model"
 	sessionModel "github.com/rendau/zorko/internal/domain/session/model"
 	"github.com/rendau/zorko/internal/domain/usr/model"
 )
@@ -30,4 +31,8 @@ type SessionServiceI interface {
 type LoginLimiterI interface {
 	Allowed(key string) bool
 	Fail(key string)
+}
+
+type ProjectServiceI interface {
+	List(ctx context.Context, pars *projectModel.ListReq) ([]*projectModel.Main, int64, error)
 }

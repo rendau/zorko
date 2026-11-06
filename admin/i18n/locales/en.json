@@ -336,7 +336,25 @@
     "adminHint": "An administrator manages projects, keys and people; a member only views",
     "selfHint": "You cannot remove your own administrator rights or disable yourself",
     "deleteTitle": "Delete the person?",
-    "deleteDescription": "They will no longer be able to sign in."
+    "deleteDescription": "They will no longer be able to sign in.",
+    "generate": "Generate",
+    "projects": {
+      "title": "Projects",
+      "all": "All projects",
+      "hint": "A member sees only the selected projects and their organizations. Empty — all projects.",
+      "adminHint": "An administrator always sees all projects",
+      "deleted": "Deleted project #{id}",
+      "staleHint": "Some selected projects were deleted — remove them from the list"
+    },
+    "copy": {
+      "button": "Save & copy",
+      "hint": "“Save & copy” puts the zorko address, username and password on the clipboard as one message",
+      "site": "zorko: {url}",
+      "username": "Username: {username}",
+      "password": "Password: {password}",
+      "done": "Sign-in details copied",
+      "failed": "Clipboard unavailable, nothing saved. Use “Save” and copy the password manually."
+    }
   },
   "apiError": {
     "not_authorized": "Wrong username or password, or the session has expired",

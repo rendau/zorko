@@ -1,18 +1,32 @@
 <script setup lang="ts">
+import type { SelectMenuItem } from '@nuxt/ui'
+import type { OrgMain } from '~/types/org'
+import type { ProjectMain } from '~/types/project'
 import type { UsrMain } from '~/types/usr'
 
-// Люди (только админ): добавить с временным паролем, роль, отключить, сбросить пароль, удалить
+// Люди (только админ): добавить со случайным паролем, роль, проекты участника, отключить,
+// сбросить пароль, удалить. «Сохранить и скопировать» кладёт в буфер адрес, логин и пароль.
 const { t } = useI18n()
 const auth = useAuth()
+const toast = useToast()
 const { loading, run } = useApiAction()
 
 const items = ref<UsrMain[]>([])
+const orgs = ref<OrgMain[]>([])
+const projects = ref<ProjectMain[]>([])
 const error = ref('')
 
 async function load() {
   error.value = ''
   try {
-    items.value = (await usrApi.list({ page: 0, page_size: 100 })).results
+    const [u, o, p] = await Promise.all([
+      usrApi.list({ page: 0, page_size: 100 }),
+      orgApi.list(),
+      projectApi.listAll(),
+    ])
+    items.value = u.results
+    orgs.value = o.results
+    projects.value = p.results
   }
   catch (e) {
     error.value = apiErrorMessage(e)
@@ -20,22 +34,58 @@ async function load() {
 }
 onMounted(load)
 
+const projectById = computed(() => new Map(projects.value.map(p => [p.id, p])))
+
+function projectLabel(id: string): string {
+  const p = projectById.value.get(id)
+  return p ? (p.name || p.slug) : t('users.projects.deleted', { id })
+}
+
+// подпись в таблице: «Все проекты» или имена через запятую
+function projectsSummary(u: UsrMain): string {
+  if (u.is_admin || !u.project_ids?.length)
+    return t('users.projects.all')
+  return u.project_ids.map(projectLabel).join(', ')
+}
+
 const modal = ref(false)
 const editing = ref<UsrMain | null>(null)
 const name = ref('')
 const username = ref('')
 const password = ref('')
+// сгенерированный пароль показан открыто: админ должен видеть, что передаёт
+const passwordRevealed = ref(false)
 const isAdmin = ref(false)
 const active = ref(true)
+const projectIds = ref<string[]>([])
 const confirm = ref<UsrMain | null>(null)
+
+// пункты выбора по организациям; проекты, удалённые после назначения, видны отдельно —
+// иначе их тихое исчезновение превратило бы список в «все проекты»
+const projectItems = computed<SelectMenuItem[][]>(() => {
+  const groups = orgs.value
+    .map(o => [
+      { type: 'label' as const, label: o.name || o.slug } as SelectMenuItem,
+      ...projects.value
+        .filter(p => p.org_id === o.id)
+        .map(p => ({ label: p.name || p.slug, value: p.id })),
+    ])
+    .filter(g => g.length > 1)
+  const stale = projectIds.value.filter(id => !projectById.value.has(id))
+  if (stale.length)
+    groups.push(stale.map(id => ({ label: t('users.projects.deleted', { id }), value: id })))
+  return groups
+})
 
 function openCreate() {
   editing.value = null
   name.value = ''
   username.value = ''
   password.value = ''
+  passwordRevealed.value = false
   isAdmin.value = false
   active.value = true
+  projectIds.value = []
   modal.value = true
 }
 
@@ -44,15 +94,30 @@ function openEdit(u: UsrMain) {
   name.value = u.name
   username.value = u.username
   password.value = ''
+  passwordRevealed.value = false
   isAdmin.value = u.is_admin
   active.value = u.active
+  projectIds.value = [...(u.project_ids ?? [])]
   modal.value = true
 }
 
-const isSelf = computed(() => !!editing.value && editing.value.id === auth.user.value?.id)
+function fillGeneratedPassword() {
+  password.value = generatePassword()
+  passwordRevealed.value = true
+}
 
-async function save() {
-  const body = {
+watch(password, (v) => {
+  // стёрли пароль — поле снова скрытое
+  if (!v)
+    passwordRevealed.value = false
+})
+
+const isSelf = computed(() => !!editing.value && editing.value.id === auth.user.value?.id)
+const canSave = computed(() => !!username.value.trim() && (!!editing.value || !!password.value))
+const hasStale = computed(() => projectIds.value.some(id => !projectById.value.has(id)))
+
+async function save(): Promise<boolean> {
+  const common = {
     name: name.value.trim(),
     username: username.value.trim(),
     is_admin: isAdmin.value,
@@ -61,15 +126,40 @@ async function save() {
   }
   const ok = await run(async () => {
     if (editing.value)
-      await usrApi.update(editing.value.id, body)
+      await usrApi.update(editing.value.id, { ...common, project_ids: { values: projectIds.value } })
     else
-      await usrApi.create(body)
+      await usrApi.create({ ...common, project_ids: projectIds.value })
     return true
   }, { success: t('common.saved') })
   if (ok) {
     modal.value = false
     await load()
   }
+  return !!ok
+}
+
+// адрес интерфейса, логин и пароль одним сообщением — чтобы переслать в мессенджер
+function credentialsMessage(): string {
+  const siteUrl = new URL(useRuntimeConfig().app.baseURL || '/', window.location.origin).href
+  return [
+    t('users.copy.site', { url: siteUrl }),
+    t('users.copy.username', { username: username.value.trim().toLowerCase() }),
+    t('users.copy.password', { password: password.value }),
+  ].join('\n')
+}
+
+// Буфер пишется до запроса: после закрытия окна пароля уже не увидеть, поэтому человек не
+// сохраняется с паролем, который не удалось скопировать.
+async function saveAndCopy() {
+  try {
+    await navigator.clipboard.writeText(credentialsMessage())
+  }
+  catch {
+    toast.add({ title: t('users.copy.failed'), color: 'error' })
+    return
+  }
+  if (await save())
+    toast.add({ title: t('users.copy.done'), color: 'success' })
 }
 
 async function remove() {
@@ -97,12 +187,13 @@ async function remove() {
     <template #body>
       <LoadAlert :title="t('users.loadError')" :error="error" @retry="load" />
       <div class="overflow-x-auto rounded-lg border border-default">
-        <table class="w-full min-w-[560px] text-sm">
+        <table class="w-full min-w-[640px] text-sm">
           <thead class="bg-elevated/50 text-left text-xs text-muted">
             <tr>
               <th class="px-4 py-2 font-medium">{{ t('usr.field.name') }}</th>
               <th class="px-4 py-2 font-medium">{{ t('usr.field.username') }}</th>
               <th class="px-4 py-2 font-medium">{{ t('users.role') }}</th>
+              <th class="px-4 py-2 font-medium">{{ t('users.projects.title') }}</th>
               <th class="px-4 py-2 font-medium">{{ t('users.status') }}</th>
               <th class="px-4 py-2" />
             </tr>
@@ -113,6 +204,9 @@ async function remove() {
               <td class="px-4 py-2 font-mono text-xs">{{ u.username }}</td>
               <td class="px-4 py-2">
                 <UBadge :color="u.is_admin ? 'primary' : 'neutral'" variant="subtle" size="sm">{{ u.is_admin ? t('usr.role.admin') : t('usr.role.member') }}</UBadge>
+              </td>
+              <td class="max-w-64 truncate px-4 py-2" :class="u.is_admin || !u.project_ids?.length ? 'text-muted' : ''" :title="projectsSummary(u)">
+                {{ projectsSummary(u) }}
               </td>
               <td class="px-4 py-2">{{ u.active ? t('users.active') : t('users.disabled') }}</td>
               <td class="px-4 py-2 text-right whitespace-nowrap">
@@ -133,11 +227,40 @@ async function remove() {
             <UFormField :label="t('usr.field.username')" :hint="t('usr.usernameHint')">
               <UInput v-model="username" autocomplete="off" class="w-full font-mono" />
             </UFormField>
-            <UFormField :label="editing ? t('users.newPassword') : t('users.tempPassword')" :hint="t('usr.passwordHint')">
-              <UInput v-model="password" type="password" autocomplete="new-password" class="w-full" />
+            <UFormField
+              :label="editing ? t('users.newPassword') : t('users.tempPassword')"
+              :hint="t('usr.passwordHint')"
+              :description="password ? t('users.copy.hint') : undefined"
+            >
+              <UFieldGroup class="w-full">
+                <UInput
+                  v-model="password"
+                  :type="passwordRevealed ? 'text' : 'password'"
+                  autocomplete="new-password"
+                  class="w-full"
+                  :class="passwordRevealed ? 'font-mono' : ''"
+                />
+                <UButton color="neutral" variant="outline" icon="i-lucide-dices" :label="t('users.generate')" @click="fillGeneratedPassword" />
+              </UFieldGroup>
             </UFormField>
             <UFormField :label="t('usr.role.admin')" :description="isSelf ? t('users.selfHint') : t('users.adminHint')">
               <USwitch v-model="isAdmin" :disabled="isSelf" />
+            </UFormField>
+            <UFormField
+              :label="t('users.projects.title')"
+              :description="isAdmin ? t('users.projects.adminHint') : t('users.projects.hint')"
+              :error="!isAdmin && hasStale ? t('users.projects.staleHint') : undefined"
+            >
+              <USelectMenu
+                v-model="projectIds"
+                :items="projectItems"
+                value-key="value"
+                multiple
+                :disabled="isAdmin"
+                icon="i-lucide-folder"
+                :placeholder="t('users.projects.all')"
+                class="w-full"
+              />
             </UFormField>
             <UFormField :label="t('users.active')">
               <USwitch v-model="active" :disabled="isSelf" />
@@ -147,7 +270,23 @@ async function remove() {
         <template #footer>
           <div class="flex w-full justify-end gap-2">
             <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="modal = false" />
-            <UButton type="submit" form="usr-form" :label="t('common.save')" :loading="loading" :disabled="!username || (!editing && !password)" />
+            <UButton
+              type="submit"
+              form="usr-form"
+              :color="password ? 'neutral' : 'primary'"
+              :variant="password ? 'outline' : 'solid'"
+              :label="t('common.save')"
+              :loading="loading"
+              :disabled="!canSave"
+            />
+            <UButton
+              v-if="password"
+              icon="i-lucide-copy"
+              :label="t('users.copy.button')"
+              :loading="loading"
+              :disabled="!canSave"
+              @click="saveAndCopy"
+            />
           </div>
         </template>
       </UModal>

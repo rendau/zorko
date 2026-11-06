@@ -89,6 +89,13 @@ message UsrMain {
   bool is_admin = 5;
   string name = 6;
   string username = 7;
+  // проекты, которые видит участник; пусто — все проекты. Админу не ограничивает.
+  repeated int64 project_ids = 8;
+}
+
+// UsrProjectIdList — обёртка списка проектов: не передан — список не меняется
+message UsrProjectIdList {
+  repeated int64 values = 1;
 }
 
 // List
@@ -118,6 +125,7 @@ message UsrCreateReq {
   optional string name = 3;
   optional string username = 4;
   optional string password = 5;
+  repeated int64 project_ids = 6;
 }
 
 message UsrCreateRep {
@@ -133,6 +141,7 @@ message UsrUpdateReq {
   optional string name = 4;
   optional string username = 5;
   optional string password = 6;
+  UsrProjectIdList project_ids = 7;
 }
 
 // Вход

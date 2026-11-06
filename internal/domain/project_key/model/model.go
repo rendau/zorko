@@ -36,7 +36,8 @@ type Edit struct {
 type ListReq struct {
 	commonModel.ListParams
 
-	ProjectId *int64
-	Active    *bool
-	IDs       *[]int64
+	ProjectId  *int64
+	ProjectIds *[]int64
+	Active     *bool
+	IDs        *[]int64
 }

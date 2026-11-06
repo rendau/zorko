@@ -16,10 +16,11 @@ import (
 type Usecase struct {
 	svc        ServiceI
 	sessionSvc SessionServiceI
+	accessSvc  AccessServiceI
 }
 
-func New(svc ServiceI, sessionSvc SessionServiceI) *Usecase {
-	return &Usecase{svc: svc, sessionSvc: sessionSvc}
+func New(svc ServiceI, sessionSvc SessionServiceI, accessSvc AccessServiceI) *Usecase {
+	return &Usecase{svc: svc, sessionSvc: sessionSvc, accessSvc: accessSvc}
 }
 
 func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
@@ -72,6 +73,17 @@ func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main,
 	if err := util.RequirePageSize(pars.ListParams, 0); err != nil {
 		return nil, 0, err
 	}
+	access, err := u.accessSvc.ProjectAccess(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	if !access.All {
+		// участник видит только свои проекты
+		pars.IDs = new(lo.Ternary(pars.IDs == nil, access.Ids, access.Filter(lo.FromPtr(pars.IDs))))
+		if len(*pars.IDs) == 0 {
+			return []*model.Main{}, 0, nil
+		}
+	}
 	items, tCount, err := u.svc.List(ctx, pars)
 	if err != nil {
 		return nil, 0, fmt.Errorf("svc.List: %w", err)
@@ -82,6 +94,9 @@ func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main,
 func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
 	if !u.sessionSvc.CtxIsAuthorized(ctx) {
 		return nil, errs.NotAuthorized
+	}
+	if err := u.accessSvc.CheckProject(ctx, id); err != nil {
+		return nil, err
 	}
 	result, _, err := u.svc.Get(ctx, id, true)
 	if err != nil {

@@ -15,6 +15,7 @@ type Select struct {
 	Name       string
 	Username   string
 	Password   string
+	ProjectIds []int64
 }
 
 func (m *Select) ListColumnMap() map[string]any {
@@ -27,6 +28,7 @@ func (m *Select) ListColumnMap() map[string]any {
 		"name":        &m.Name,
 		"username":    &m.Username,
 		"password":    &m.Password,
+		"project_ids": &m.ProjectIds,
 	}
 }
 
@@ -50,5 +52,6 @@ func EncodeSelect(v *Select, _ int) *domainModel.Main {
 		Name:       v.Name,
 		Username:   v.Username,
 		Password:   v.Password,
+		ProjectIds: v.ProjectIds,
 	}
 }

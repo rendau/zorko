@@ -46,6 +46,7 @@ import (
 	handlerSentryapiP "github.com/rendau/zorko/internal/handler/sentryapi"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
 	infraS3P "github.com/rendau/zorko/internal/infra/s3"
+	serviceAccessServiceP "github.com/rendau/zorko/internal/service/access/service"
 	serviceArtifactgcServiceP "github.com/rendau/zorko/internal/service/artifactgc/service"
 	serviceAssembleServiceP "github.com/rendau/zorko/internal/service/assemble/service"
 	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
@@ -162,25 +163,30 @@ func (a *App) Init() {
 	// usr
 	usrRepo := domainUsrRepoDbP.New(a.pgpool)
 	usrService := domainUsrServiceP.New(usrRepo)
-	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute))
-	usrHandler := handlerGrpcP.NewUsr(usrUsecase)
-
-	// org
-	orgRepo := domainOrgRepoDbP.New(a.pgpool)
-	orgService := domainOrgServiceP.New(orgRepo)
-	orgUsecase := usecaseOrgP.New(orgService, sessionService)
-	orgHandler := handlerGrpcP.NewOrg(orgUsecase)
 
 	// project
 	projectRepo := domainProjectRepoDbP.New(a.pgpool)
 	projectService := domainProjectServiceP.New(projectRepo)
-	projectUsecase := usecaseProjectP.New(projectService, sessionService)
+
+	// access (какие проекты видит вошедший человек)
+	accessService := serviceAccessServiceP.New(sessionService, usrService)
+
+	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute), projectService)
+	usrHandler := handlerGrpcP.NewUsr(usrUsecase)
+
+	projectUsecase := usecaseProjectP.New(projectService, sessionService, accessService)
 	projectHandler := handlerGrpcP.NewProject(projectUsecase)
+
+	// org
+	orgRepo := domainOrgRepoDbP.New(a.pgpool)
+	orgService := domainOrgServiceP.New(orgRepo)
+	orgUsecase := usecaseOrgP.New(orgService, sessionService, projectService, accessService)
+	orgHandler := handlerGrpcP.NewOrg(orgUsecase)
 
 	// project_key
 	projectKeyRepo := domainProjectKeyRepoDbP.New(a.pgpool)
 	projectKeyService := domainProjectKeyServiceP.New(projectKeyRepo)
-	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService, sessionService)
+	projectKeyUsecase := usecaseProjectKeyP.New(projectKeyService, sessionService, accessService)
 	projectKeyHandler := handlerGrpcP.NewProjectKey(projectKeyUsecase)
 
 	// org_token (токены CI, ADR-009)
@@ -193,7 +199,7 @@ func (a *App) Init() {
 	var artifactBundleHandler *handlerGrpcP.ArtifactBundle
 	var siteFetchHandler *handlerGrpcP.SiteFetch
 	{
-		artifactUsecase := usecaseArtifactP.New(domainArtifactServiceP.New(domainArtifactRepoDbP.New(a.pgpool), nil), sessionService)
+		artifactUsecase := usecaseArtifactP.New(domainArtifactServiceP.New(domainArtifactRepoDbP.New(a.pgpool), nil), sessionService, accessService)
 		artifactBundleHandler = handlerGrpcP.NewArtifactBundle(artifactUsecase)
 		siteFetchHandler = handlerGrpcP.NewSiteFetch(artifactUsecase)
 	}
@@ -290,7 +296,7 @@ func (a *App) Init() {
 	// issue, event, tag (чтение для интерфейса)
 	issueReadService := domainIssueServiceP.New(domainIssueRepoDbP.New(a.pgpool))
 	eventReadService := domainEventServiceP.NewRead(domainEventRepoChP.New(a.chConn))
-	issueUsecase := usecaseIssueP.New(sessionService, projectService, issueReadService, eventReadService, serviceSearchqueryServiceP.New())
+	issueUsecase := usecaseIssueP.New(sessionService, projectService, issueReadService, eventReadService, serviceSearchqueryServiceP.New(), accessService)
 	issueHandler := handlerGrpcP.NewIssue(issueUsecase)
 	eventHandler := handlerGrpcP.NewEvent(issueUsecase)
 	tagHandler := handlerGrpcP.NewTag(issueUsecase)
