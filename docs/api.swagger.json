@@ -27,6 +27,9 @@
       "name": "ProjectKeyService"
     },
     {
+      "name": "ReplayService"
+    },
+    {
       "name": "SiteFetchService"
     },
     {
@@ -562,6 +565,80 @@
         ],
         "tags": [
           "IssueService"
+        ]
+      }
+    },
+    "/issue/{issue_id}/replay": {
+      "get": {
+        "summary": "IssueList — записи с ошибками проблемы, новые первыми",
+        "operationId": "ReplayService_IssueList",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ReplayListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page_size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.with_total_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.only_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.sort_name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "list_params.sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          }
+        ],
+        "tags": [
+          "ReplayService"
         ]
       }
     },
@@ -1312,6 +1389,160 @@
         ],
         "tags": [
           "ProjectKeyService"
+        ]
+      }
+    },
+    "/replay": {
+      "get": {
+        "operationId": "ReplayService_List",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ReplayListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "list_params.page",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.page_size",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "list_params.with_total_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.only_count",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "list_params.sort_name",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "list_params.sort",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "project_ids",
+            "in": "query",
+            "required": false,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "int64"
+            },
+            "collectionFormat": "multi"
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "release",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "q",
+            "description": "подстрока адреса страницы, id или почта пользователя",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "has_errors",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "replay_type",
+            "description": "buffer | session; пусто — любые",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ReplayService"
+        ]
+      }
+    },
+    "/replay/{id}": {
+      "get": {
+        "summary": "Get — запись и её ошибки (отметки на шкале проигрывателя)",
+        "operationId": "ReplayService_Get",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1ReplayGetRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "ReplayService"
         ]
       }
     },
@@ -2642,6 +2873,136 @@
         "replay_hour_limit": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "zorko_v1ReplayErrorMark": {
+      "type": "object",
+      "properties": {
+        "issue_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "zorko_v1ReplayGetRep": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "$ref": "#/definitions/zorko_v1ReplaySummary"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1ReplayErrorMark"
+          }
+        }
+      }
+    },
+    "zorko_v1ReplayListRep": {
+      "type": "object",
+      "properties": {
+        "pagination_info": {
+          "$ref": "#/definitions/commonPaginationInfoSt"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1ReplaySummary"
+          }
+        }
+      }
+    },
+    "zorko_v1ReplaySummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "32 hex, как у SDK"
+        },
+        "project_id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "replay_type": {
+          "type": "string",
+          "title": "buffer — запись началась из-за ошибки; session — сессия попала в долю"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "string",
+          "format": "int64"
+        },
+        "segments": {
+          "type": "integer",
+          "format": "int32",
+          "title": "сегменты 0..max_segment; segments \u003c max_segment + 1 — какие-то потерялись"
+        },
+        "max_segment": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "url": {
+          "type": "string",
+          "title": "первый адрес записи"
+        },
+        "error_count": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "user_email": {
+          "type": "string"
+        },
+        "user_ip": {
+          "type": "string"
+        },
+        "browser": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        },
+        "sdk_name": {
+          "type": "string"
+        },
+        "sdk_version": {
+          "type": "string"
+        },
+        "error_at": {
+          "type": "string",
+          "format": "date-time",
+          "title": "время первой ошибки проблемы в записи (только в IssueList)"
         }
       }
     },

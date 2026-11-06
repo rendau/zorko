@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "common/common.proto";
+
+option go_package = "/zorko_v1";
+
+// ReplayService — записи сессий (ADR-012..015). Тела сегментов отдаёт отдельная HTTP-ручка
+// GET /replay/{id}/segment/{n}?project_id= — zlib как есть, распаковывает браузер.
+service ReplayService {
+  rpc List(ReplayListReq) returns (ReplayListRep) {
+    option (google.api.http) = {
+      get: "/replay"
+    };
+  }
+
+  // Get — запись и её ошибки (отметки на шкале проигрывателя)
+  rpc Get(ReplayGetReq) returns (ReplayGetRep) {
+    option (google.api.http) = {
+      get: "/replay/{id}"
+    };
+  }
+
+  // IssueList — записи с ошибками проблемы, новые первыми
+  rpc IssueList(ReplayIssueListReq) returns (ReplayListRep) {
+    option (google.api.http) = {
+      get: "/issue/{issue_id}/replay"
+    };
+  }
+}
+
+message ReplaySummary {
+  // 32 hex, как у SDK
+  string id = 1;
+  int64 project_id = 2;
+  // buffer — запись началась из-за ошибки; session — сессия попала в долю
+  string replay_type = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  int64 duration_ms = 6;
+  // сегменты 0..max_segment; segments < max_segment + 1 — какие-то потерялись
+  int32 segments = 7;
+  int32 max_segment = 8;
+  // первый адрес записи
+  string url = 9;
+  int32 error_count = 10;
+  string environment = 11;
+  string release = 12;
+  string user_id = 13;
+  string user_email = 14;
+  string user_ip = 15;
+  string browser = 16;
+  string os = 17;
+  string device = 18;
+  string sdk_name = 19;
+  string sdk_version = 20;
+  // время первой ошибки проблемы в записи (только в IssueList)
+  google.protobuf.Timestamp error_at = 21;
+}
+
+message ReplayListReq {
+  common.ListParamsSt list_params = 1;
+  int64 org_id = 2;
+  repeated int64 project_ids = 3;
+  string environment = 4;
+  string release = 5;
+  // подстрока адреса страницы, id или почта пользователя
+  string q = 6;
+  optional bool has_errors = 7;
+  // buffer | session; пусто — любые
+  string replay_type = 8;
+}
+
+message ReplayListRep {
+  common.PaginationInfoSt pagination_info = 1;
+  repeated ReplaySummary results = 2;
+}
+
+message ReplayGetReq {
+  string id = 1;
+  int64 project_id = 2;
+}
+
+message ReplayErrorMark {
+  int64 issue_id = 1;
+  string title = 2;
+  string event_id = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message ReplayGetRep {
+  ReplaySummary summary = 1;
+  repeated ReplayErrorMark errors = 2;
+}
+
+message ReplayIssueListReq {
+  int64 issue_id = 1;
+  common.ListParamsSt list_params = 2;
+}

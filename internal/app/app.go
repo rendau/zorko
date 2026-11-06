@@ -47,6 +47,7 @@ import (
 	domainUsrServiceP "github.com/rendau/zorko/internal/domain/usr/service"
 	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
 	handlerIngestP "github.com/rendau/zorko/internal/handler/ingest"
+	handlerReplaysegP "github.com/rendau/zorko/internal/handler/replayseg"
 	handlerSentryapiP "github.com/rendau/zorko/internal/handler/sentryapi"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
 	infraS3P "github.com/rendau/zorko/internal/infra/s3"
@@ -75,6 +76,7 @@ import (
 	usecaseOrgTokenP "github.com/rendau/zorko/internal/usecase/org_token"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
 	usecaseProjectKeyP "github.com/rendau/zorko/internal/usecase/project_key"
+	usecaseReplayP "github.com/rendau/zorko/internal/usecase/replay"
 	usecaseUploadP "github.com/rendau/zorko/internal/usecase/upload"
 	usecaseUsrP "github.com/rendau/zorko/internal/usecase/usr"
 	"github.com/rendau/zorko/pkg/proto/zorko_v1"
@@ -377,6 +379,12 @@ func (a *App) Init() {
 	eventHandler := handlerGrpcP.NewEvent(issueUsecase)
 	tagHandler := handlerGrpcP.NewTag(issueUsecase)
 
+	// replay (записи сессий для интерфейса); тела сегментов — отдельная HTTP-ручка на шлюзе (ADR-015)
+	replayUsecase := usecaseReplayP.New(sessionService, projectService, issueReadService, replayService, accessService,
+		config.Conf.ReplayMaxSegmentBytes+1<<20)
+	replayHandler := handlerGrpcP.NewReplay(replayUsecase)
+	replaySegmentHandler := handlerReplaysegP.New(replayUsecase, sessionService)
+
 	// grpc server
 	{
 		a.grpcServer = NewGrpcServer("main", sessionService, func(server *grpc.Server) {
@@ -390,6 +398,7 @@ func (a *App) Init() {
 			zorko_v1.RegisterIssueServiceServer(server, issueHandler)
 			zorko_v1.RegisterEventServiceServer(server, eventHandler)
 			zorko_v1.RegisterTagServiceServer(server, tagHandler)
+			zorko_v1.RegisterReplayServiceServer(server, replayHandler)
 		})
 	}
 
@@ -416,6 +425,7 @@ func (a *App) Init() {
 				zorko_v1.RegisterIssueServiceHandler,
 				zorko_v1.RegisterEventServiceHandler,
 				zorko_v1.RegisterTagServiceHandler,
+				zorko_v1.RegisterReplayServiceHandler,
 			}
 			for _, h := range handlers {
 				err = h(context.Background(), mux, conn)
@@ -429,7 +439,9 @@ func (a *App) Init() {
 				method  string
 				path    string
 				handler runtime.HandlerFunc
-			}{}
+			}{
+				{http.MethodGet, "/replay/{id}/segment/{n}", replaySegmentHandler.Segment},
+			}
 			for _, h := range httpHandlers {
 				err = mux.HandlePath(h.method, h.path, h.handler)
 				if err != nil {
