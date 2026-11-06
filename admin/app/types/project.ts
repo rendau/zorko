@@ -11,7 +11,15 @@ export interface ProjectMain {
   site_fetch_header_name?: string
   site_fetch_header_value_set?: boolean
   site_fetch_interval_min?: number
+  // запись сессий (ADR-013)
+  replay_mode?: ReplayMode
+  replay_session_rate?: number
+  replay_hour_limit?: number
+  // S3 настроен: запись можно включить
+  replay_available?: boolean
 }
+
+export type ReplayMode = 'off' | 'error' | 'session'
 
 export interface ProjectEdit {
   org_id?: string
@@ -25,6 +33,9 @@ export interface ProjectEdit {
   site_fetch_header_value?: string
   site_fetch_header_clear?: boolean
   site_fetch_interval_min?: number
+  replay_mode?: ReplayMode
+  replay_session_rate?: number
+  replay_hour_limit?: number
 }
 
 export interface ProjectKeyMain {

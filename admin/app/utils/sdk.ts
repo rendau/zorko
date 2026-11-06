@@ -23,17 +23,43 @@ const viteReleaseEnv = `  // Версия сборки — задаётся в v
 // Отметки сессий (браузерный SDK шлёт по одной на каждое открытие страницы) и отчёты SDK о себе
 // zorko принимает и выбрасывает — выключаем, чтобы на сайте с большим трафиком не гонять пустые запросы
 // i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
-function browserNoSessions(indent: string): string {
+function browserNoSessions(indent: string, replay: ReplaySnippet): string {
+  if (replay.mode === 'off') {
+    return [
+      '// Отметки сессий (по одной на каждое открытие страницы) и отчёты SDK о себе zorko',
+      '// не хранит — выключаем, иначе на каждый просмотр уходит лишний запрос',
+      'integrations: defaults => defaults.filter(i => i.name !== \'BrowserSession\'),',
+      'sendClientReports: false,',
+    ].map(line => indent + line).join('\n')
+  }
+  const rate = replay.mode === 'session' ? Math.round(replay.rate * 1000) / 1000 : 0
   return [
     '// Отметки сессий (по одной на каждое открытие страницы) и отчёты SDK о себе zorko',
     '// не хранит — выключаем, иначе на каждый просмотр уходит лишний запрос',
-    'integrations: defaults => defaults.filter(i => i.name !== \'BrowserSession\'),',
+    'integrations: defaults => [',
+    '  ...defaults.filter(i => i.name !== \'BrowserSession\'),',
+    '  // Запись сессии: весь текст и картинки скрыты (видно, куда нажимали, но не что',
+    '  // написано). Безопасные места можно открыть классом sentry-unmask.',
+    '  Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),',
+    '],',
     'sendClientReports: false,',
+    '// Запись при ошибке: последняя минута до неё и дальше до конца сессии',
+    'replaysOnErrorSampleRate: 1.0,',
+    replay.mode === 'session'
+      ? `// Доля всех сессий (настройка проекта в zorko: ${Math.round(rate * 1000) / 10} %)`
+      : '// Сессии без ошибок не пишем (режим проекта в zorko — «только при ошибке»)',
+    `replaysSessionSampleRate: ${rate},`,
   ].map(line => indent + line).join('\n')
 }
 
+// ReplaySnippet — запись сессий в примере: режим проекта и доля всех сессий (0..1)
+export interface ReplaySnippet {
+  mode: 'off' | 'error' | 'session'
+  rate: number
+}
+
 // i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
-export function sdkSnippets(dsn: string): SdkSnippet[] {
+export function sdkSnippets(dsn: string, replay: ReplaySnippet = { mode: 'off', rate: 0 }): SdkSnippet[] {
   return [
     {
       id: 'vue',
@@ -45,7 +71,7 @@ Sentry.init({
   app,
   dsn: '${dsn}',
 ${viteReleaseEnv}
-${browserNoSessions('  ')}
+${browserNoSessions('  ', replay)}
 })`,
     },
     {
@@ -72,7 +98,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     release: config.sentryRelease || undefined,
     // NODE_ENV на тесте и на бою одинаковый (production), поэтому окружение задаём явно
     environment: import.meta.dev ? 'development' : (config.sentryEnvironment || 'production'),
-${browserNoSessions('    ')}
+${browserNoSessions('    ', replay)}
   })
 
   // Ошибка в любом компоненте
@@ -107,7 +133,7 @@ ${browserNoSessions('    ')}
 Sentry.init({
   dsn: '${dsn}',
 ${viteReleaseEnv}
-${browserNoSessions('  ')}
+${browserNoSessions('  ', replay)}
 })`,
     },
     {
@@ -120,7 +146,7 @@ Sentry.init({
   dsn: '${dsn}',
   release: 'my-app@1.0.0',
   environment: 'production',
-${browserNoSessions('  ')}
+${browserNoSessions('  ', replay)}
 })`,
     },
     {

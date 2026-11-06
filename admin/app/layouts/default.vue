@@ -41,6 +41,7 @@ function inSection(to: string): boolean {
 const navItems = computed<NavigationMenuItem[][]>(() => [
   [
     { label: t('nav.issues'), icon: 'i-lucide-bug', to: '/issues', active: inSection('/issues') },
+    { label: t('nav.replays'), icon: 'i-lucide-video', to: '/replays', active: inSection('/replays') },
   ],
   [
     { label: t('nav.settings'), icon: 'i-lucide-folder-cog', to: '/settings', active: inSection('/settings') },

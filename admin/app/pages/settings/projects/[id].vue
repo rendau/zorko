@@ -50,7 +50,11 @@ async function removeKey() {
 
 const snippetTab = ref('vue')
 const firstDsn = computed(() => keys.value.find(k => k.active)?.dsn ?? keys.value[0]?.dsn ?? '')
-const snippets = computed(() => sdkSnippets(firstDsn.value))
+// запись сессий в примере — по режиму проекта (сохранённому, а не выбранному в форме)
+const snippets = computed(() => sdkSnippets(firstDsn.value, {
+  mode: project.value?.replay_mode || 'off',
+  rate: project.value?.replay_session_rate ?? 0,
+}))
 const snippetTabs = computed(() => [
   ...snippets.value.map(s => ({ label: s.label, value: s.id })),
   { label: t('settings.sdk.build'), value: 'build' },
@@ -171,6 +175,12 @@ watch(project, (p) => {
               <CopyButton :text="snippet.code" class="absolute right-2 top-2" />
             </div>
           </div>
+        </section>
+
+        <section id="replay" class="scroll-mt-4 space-y-3">
+          <h3 class="text-sm font-semibold text-highlighted">{{ t('settings.replay.title') }}</h3>
+          <p class="text-xs text-muted">{{ t('settings.replay.description') }}</p>
+          <SettingsReplayForm :project="project" :is-admin="auth.isAdmin.value" @saved="load" />
         </section>
 
         <section id="maps" class="scroll-mt-4 space-y-3">

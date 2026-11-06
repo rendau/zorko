@@ -16,6 +16,8 @@ export interface ApiRequestOptions {
   query?: QueryParams
   body?: unknown
   signal?: AbortSignal
+  // arrayBuffer — бинарное тело (сегменты записей сессий); по умолчанию — JSON
+  responseType?: 'json' | 'arrayBuffer'
 }
 
 const AUTH_PATHS = ['/usr/login', '/usr/token/refresh']
@@ -101,13 +103,15 @@ async function refreshTokens(): Promise<boolean> {
 
 function request<T>(path: string, options: ApiRequestOptions): Promise<T> {
   const jwt = getStoredJwt()
+  const binary = options.responseType === 'arrayBuffer'
   return $fetch<T>(path, {
     baseURL: useApiBaseUrl(),
     method: options.method ?? 'GET',
     query: flattenQuery(options.query),
     body: options.body as Record<string, unknown> | undefined,
     signal: options.signal,
-    headers: { Accept: 'application/json', ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+    responseType: binary ? 'arrayBuffer' : 'json',
+    headers: { Accept: binary ? 'application/octet-stream' : 'application/json', ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
   })
 }
 

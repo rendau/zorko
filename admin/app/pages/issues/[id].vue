@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { EventMain, EventSummary } from '~/types/event'
 import type { IssueGetRep, IssueStatPoint, Period, TagDist } from '~/types/issue'
+import type { ReplaySummary } from '~/types/replay'
 
 // Карточка проблемы: шапка, график, теги, событие с листанием и таблица сохранённых событий
 const { t } = useI18n()
@@ -73,7 +74,39 @@ const periodItems = computed(() => (['1h', '24h', '7d', '14d', '30d'] as Period[
 const tabs = computed(() => [
   { label: t('issue.tab.event'), value: 'event', icon: 'i-lucide-file-search' },
   { label: t('issue.tab.events'), value: 'events', icon: 'i-lucide-list' },
+  { label: replaysTotal.value ? t('issue.tab.replaysN', { n: replaysTotal.value }) : t('issue.tab.replays'), value: 'replays', icon: 'i-lucide-video' },
 ])
+
+// записи сессий с этой ошибкой (ADR-014): номер берётся из связей, а не из сохранённых событий
+const REPLAY_PAGE = 20
+const replays = ref<ReplaySummary[]>([])
+const replaysTotal = ref(0)
+const replaysError = ref('')
+const replaysLoading = ref(false)
+const replaysPage = ref(1)
+
+async function loadReplays() {
+  replaysLoading.value = true
+  replaysError.value = ''
+  try {
+    const rep = await replayApi.issueList(id.value, replaysPage.value - 1, REPLAY_PAGE)
+    replays.value = rep.results
+    replaysTotal.value = Number(rep.pagination_info.total_count)
+  }
+  catch (e) {
+    replaysError.value = apiErrorMessage(e)
+  }
+  finally {
+    replaysLoading.value = false
+  }
+}
+watch(() => [id.value, replaysPage.value], loadReplays, { immediate: true })
+
+// у события с тегом replayId — переход к записи, за 5 с до ошибки
+const eventReplayId = computed(() => (event.value ? parseEvent(event.value.data).tags.find(([k]) => k === 'replayId')?.[1] ?? '' : ''))
+const eventReplayLink = computed(() => (event.value && issue.value && eventReplayId.value
+  ? { path: `/replays/${eventReplayId.value}`, query: { project: issue.value.issue.project_id, at: event.value.summary.timestamp } }
+  : null))
 
 // клик по тегу — к таблице событий с этим условием
 function filterByTag(key: string, value: string) {
@@ -206,10 +239,21 @@ const searchScope = computed(() => ({
                   <span class="font-mono">{{ event.summary.event_id.slice(0, 8) }}</span> · {{ formatDateTime(event.summary.timestamp) }}
                   <template v-if="event.summary.release"> · {{ event.summary.release }}</template>
                 </span>
+                <UButton v-if="eventReplayLink" size="sm" color="primary" variant="soft" icon="i-lucide-play" :label="t('issue.watchReplay')" :to="eventReplayLink" class="ms-auto" />
               </div>
               <LoadAlert :title="t('issue.eventLoadError')" :error="eventError" @retry="loadEvent" />
               <USkeleton v-if="eventLoading && !event" class="h-64 w-full" />
               <EventDetail v-if="event" :event="event" :project-id="issue.issue.project_id" @tag="filterByTag" />
+            </template>
+
+            <template v-else-if="filters.tab === 'replays'">
+              <p class="text-xs text-muted">{{ t('issue.replays.note') }}</p>
+              <LoadAlert :title="t('issue.replays.loadError')" :error="replaysError" @retry="loadReplays" />
+              <EmptyState v-if="!replays.length && !replaysLoading && !replaysError" icon="i-lucide-video-off" :title="t('issue.replays.empty')" :description="t('issue.replays.emptyHint')" />
+              <ReplayTable v-if="replays.length" :items="replays" />
+              <div v-if="replaysTotal > REPLAY_PAGE" class="flex justify-center">
+                <UPagination v-model:page="replaysPage" :total="replaysTotal" :items-per-page="REPLAY_PAGE" />
+              </div>
             </template>
 
             <template v-else>

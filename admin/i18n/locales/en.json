@@ -23,7 +23,8 @@
   "nav": {
     "issues": "Issues",
     "settings": "Projects",
-    "users": "People"
+    "users": "People",
+    "replays": "Replays"
   },
   "layout": {
     "language": "Language",
@@ -128,7 +129,9 @@
     },
     "tab": {
       "event": "Event",
-      "events": "All events"
+      "events": "All events",
+      "replays": "Replays",
+      "replaysN": "Replays ({n})"
     },
     "nav": {
       "oldest": "Oldest",
@@ -147,6 +150,13 @@
         "user": "User",
         "url": "Page"
       }
+    },
+    "watchReplay": "Watch replay",
+    "replays": {
+      "note": "Screen replays of sessions where this error happened: the last minute before it and on until the session ends.",
+      "loadError": "Failed to load replays",
+      "empty": "No replays with this error",
+      "emptyHint": "Turn on replays in the project settings and add replayIntegration() to the site — the code is in the setup examples."
     }
   },
   "event": {
@@ -321,6 +331,29 @@
       "done": "Done",
       "deleteTitle": "Delete the token?",
       "deleteDescription": "Builds with this token will stop uploading source maps right away."
+    },
+    "replay": {
+      "title": "Session replay",
+      "description": "A recording of what the person did on the site: clicks, navigation, console, server requests. It is not a video but a page snapshot and its changes — replays are small and kept for 30 days.",
+      "unavailable": "S3 storage is not configured on the server — session replay cannot be turned on.",
+      "modeLabel": "What to record",
+      "mode": {
+        "off": "Off",
+        "error": "On error only",
+        "session": "On error and a share of all sessions"
+      },
+      "modeHint": {
+        "off": "Replays are not accepted, browsers stop sending them.",
+        "error": "A minute before the error and on until the session ends. Takes almost no space.",
+        "session": "Plus a share of regular sessions — the Replays section shows how people use the site."
+      },
+      "rate": "Share of all sessions",
+      "rateHint": "goes into the setup example",
+      "hourLimit": "New replays per hour",
+      "hourLimitHint": "above it the browser stops recording",
+      "rateRelease": "The share is decided by the code on the site: after saving, copy the setup example and release the site. The mode and the limit apply at once.",
+      "privacy": "The example hides all text and images: you see where people clicked, not what is written. If the site turns masking off, the replay shows people's data.",
+      "csp": "If the site has a Content-Security-Policy, add worker-src 'self' blob: to it — otherwise replays are sent uncompressed."
     }
   },
   "users": {
@@ -376,7 +409,9 @@
     "sourcemaps_disabled": "Source maps are not configured on the server",
     "chunk_invalid": "Broken upload chunk",
     "bundle_invalid": "Broken source map bundle",
-    "release_not_found": "Release not found"
+    "release_not_found": "Release not found",
+    "replay_disabled": "Session replay is unavailable: S3 storage is not configured on the server",
+    "replay_not_found": "Replay not found"
   },
   "sourcemap": {
     "notResolved": "not resolved",
@@ -405,6 +440,60 @@
       "site_too_large": "the file is too large",
       "site_unavailable": "the site is unavailable",
       "site_http": "the site responded {status}"
+    }
+  },
+  "replay": {
+    "title": "Session replay",
+    "listTitle": "Session replays",
+    "loadError": "Failed to load the replay",
+    "listLoadError": "Failed to load replays",
+    "loading": "Loaded {n} of {total} replay parts",
+    "missing": "{n} of {total} replay parts did not arrive. The player skips over these places.",
+    "noSnapshot": "The replay has no page snapshot, so it cannot be played. This happens when the first part did not arrive.",
+    "anonymous": "not signed in",
+    "ms": "{n} ms",
+    "column": {
+      "time": "When",
+      "page": "Page",
+      "user": "Person",
+      "project": "Project",
+      "duration": "Length",
+      "errors": "Errors"
+    },
+    "type": {
+      "buffer": "on error",
+      "session": "sampled session"
+    },
+    "tab": {
+      "errors": "Errors ({n})",
+      "console": "Console ({n})",
+      "network": "Network ({n})",
+      "actions": "Actions ({n})"
+    },
+    "empty": {
+      "errors": "No errors in the replay",
+      "console": "No console messages",
+      "network": "No server requests",
+      "actions": "No clicks or navigation",
+      "title": "No replays yet",
+      "description": "Turn on replays in the project settings and add replayIntegration() to the site — the code is in the setup examples.",
+      "filtered": "Nothing matches the filter",
+      "toSettings": "To projects"
+    },
+    "notArrived": {
+      "title": "The replay did not arrive",
+      "mode": "Replays are off in the project, or the mode is “on error only” and the site sent a regular session.",
+      "limit": "The hourly limit of new replays was reached — recording stopped until the next hour.",
+      "closed": "The visitor closed the tab before the replay was sent.",
+      "csp": "The site security rules (Content-Security-Policy) block the compression worker or requests to zorko.",
+      "expired": "The replay is older than 30 days and has been deleted."
+    },
+    "filter": {
+      "anyErrors": "With and without errors",
+      "withErrors": "With errors only",
+      "withoutErrors": "Without errors",
+      "anyType": "Any replays",
+      "search": "Page address, user id or email"
     }
   }
 }
