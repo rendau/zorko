@@ -151,9 +151,10 @@ const page = computed({
         </EmptyState>
 
         <div v-if="items.length" class="overflow-x-auto rounded-lg border border-default">
-          <div class="min-w-[720px] divide-y divide-default">
-            <div class="grid grid-cols-[1fr_9rem_5rem_5rem] items-center gap-4 bg-elevated/50 px-4 py-2 text-xs font-medium text-muted">
+          <div class="min-w-[880px] divide-y divide-default">
+            <div class="grid grid-cols-[1fr_10rem_9rem_5rem_5rem] items-center gap-4 bg-elevated/50 px-4 py-2 text-xs font-medium text-muted">
               <span>{{ t('issues.column.issue') }}</span>
+              <span>{{ t('issues.column.project') }}</span>
               <span>{{ t('issues.column.graph') }}</span>
               <span class="text-right">{{ t('issues.column.events') }}</span>
               <span class="text-right">{{ t('issues.column.users') }}</span>
@@ -162,7 +163,7 @@ const page = computed({
               v-for="item in items"
               :key="item.issue.id"
               :to="{ path: `/issues/${item.issue.id}`, query: { period: filters.period, env: filters.env || undefined } }"
-              class="grid grid-cols-[1fr_9rem_5rem_5rem] items-center gap-4 px-4 py-2.5 hover:bg-elevated/50"
+              class="grid grid-cols-[1fr_10rem_9rem_5rem_5rem] items-center gap-4 px-4 py-2.5 hover:bg-elevated/50"
             >
               <div class="flex min-w-0 gap-3">
                 <span class="mt-1 h-8 w-1 shrink-0 rounded-full" :class="levelBarClass(item.issue.level)" />
@@ -173,12 +174,12 @@ const page = computed({
                   </div>
                   <div class="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                     <span v-if="item.issue.culprit" class="truncate font-mono">{{ item.issue.culprit }}</span>
-                    <span class="inline-flex items-center gap-1"><UIcon name="i-lucide-folder" class="size-3" />{{ org.projectName(item.issue.project_id) }}</span>
                     <span class="inline-flex items-center gap-1" :title="t('issues.lastSeen')"><UIcon name="i-lucide-clock" class="size-3" /><RelativeTime :value="item.issue.last_seen" /></span>
                     <span class="inline-flex items-center gap-1" :title="t('issues.firstSeen')"><UIcon name="i-lucide-sprout" class="size-3" /><RelativeTime :value="item.issue.first_seen" /></span>
                   </div>
                 </div>
               </div>
+              <span class="truncate text-sm" :title="org.projectName(item.issue.project_id)">{{ org.projectName(item.issue.project_id) }}</span>
               <SparkBars :values="item.sparkline" />
               <span class="text-right text-sm tabular-nums text-highlighted">{{ compactNumber(item.events) }}</span>
               <span class="text-right text-sm tabular-nums">{{ compactNumber(item.users) }}</span>

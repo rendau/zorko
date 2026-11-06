@@ -94,6 +94,7 @@
     },
     "column": {
       "issue": "Issue",
+      "project": "Project",
       "graph": "Graph",
       "events": "Events",
       "users": "Users"
