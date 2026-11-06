@@ -11,6 +11,7 @@ import (
 
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	issueModel "github.com/rendau/zorko/internal/domain/issue/model"
+	replayModel "github.com/rendau/zorko/internal/domain/replay/model"
 	queueModel "github.com/rendau/zorko/internal/service/queue/model"
 )
 
@@ -33,13 +34,14 @@ type Service struct {
 	grouper      grouperI
 	issueService issueServiceI
 	eventService eventServiceI
+	replayLinker ReplayLinker // nil — записи сессий выключены
 	projectLabel projectLabelI
 
 	wg sync.WaitGroup
 }
 
 func New(conf Config, queue queueI, normalizer normalizerI, symbolicator symbolicatorI, grouper grouperI,
-	issueService issueServiceI, eventService eventServiceI, projectLabel projectLabelI) *Service {
+	issueService issueServiceI, eventService eventServiceI, replayLinker ReplayLinker, projectLabel projectLabelI) *Service {
 	return &Service{
 		conf:         conf,
 		queue:        queue,
@@ -48,6 +50,7 @@ func New(conf Config, queue queueI, normalizer normalizerI, symbolicator symboli
 		grouper:      grouper,
 		issueService: issueService,
 		eventService: eventService,
+		replayLinker: replayLinker,
 		projectLabel: projectLabel,
 	}
 }
@@ -154,9 +157,21 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 	}
 	s.countEvents(resultProjectDeleted, projectDeleted)
 
+	// связи с записями сессий — для всех ошибок, а не только сохранённых полностью (ADR-014)
+	links := replayLinks(all)
+
 	start = time.Now()
-	// при сбое ClickHouse повторяется только запись в него: счётчики в Postgres уже прибавлены
-	err = s.retry(ctx, stageCh, func(c context.Context) error { return s.eventService.Store(c, all, full) })
+	// при сбое ClickHouse повторяется только запись в него: счётчики в Postgres уже прибавлены.
+	// Повтор целиком безопасен: таблицы ReplacingMergeTree схлопывают одинаковые строки.
+	err = s.retry(ctx, stageCh, func(c context.Context) error {
+		if err := s.eventService.Store(c, all, full); err != nil {
+			return err
+		}
+		if s.replayLinker != nil && len(links) > 0 {
+			return s.replayLinker.InsertLinks(c, links)
+		}
+		return nil
+	})
 	if err != nil {
 		return false
 	}
@@ -170,6 +185,26 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 
 	return true
 }
+
+// replayLinks — ошибки с тегом replayId (SDK ставит его, если запись идёт или будет отправлена из-за ошибки)
+func replayLinks(events []*eventModel.Event) []*replayModel.Link {
+	return lo.FilterMap(events, func(ev *eventModel.Event, _ int) (*replayModel.Link, bool) {
+		replayId := replayModel.NormalizeId(ev.Tags[replayTag])
+		if replayId == "" {
+			return nil, false
+		}
+		return &replayModel.Link{
+			ProjectId: ev.ProjectId,
+			IssueId:   ev.IssueId,
+			ReplayId:  replayId,
+			EventId:   ev.EventId,
+			Timestamp: ev.Timestamp,
+		}, true
+	})
+}
+
+// replayTag — тег ошибки с номером записи сессии
+const replayTag = "replayId"
 
 // countEvents прибавляет события к счётчику исхода по проектам
 func (s *Service) countEvents(result string, events []*eventModel.Event) {

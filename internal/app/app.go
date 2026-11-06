@@ -38,6 +38,10 @@ import (
 	domainProjectKeyServiceP "github.com/rendau/zorko/internal/domain/project_key/service"
 	domainReleaseRepoDbP "github.com/rendau/zorko/internal/domain/release/repo/db"
 	domainReleaseServiceP "github.com/rendau/zorko/internal/domain/release/service"
+	domainReplayRepoBlobP "github.com/rendau/zorko/internal/domain/replay/repo/blob"
+	domainReplayRepoChP "github.com/rendau/zorko/internal/domain/replay/repo/ch"
+	domainReplayRepoDbP "github.com/rendau/zorko/internal/domain/replay/repo/db"
+	domainReplayServiceP "github.com/rendau/zorko/internal/domain/replay/service"
 	domainSessionServiceP "github.com/rendau/zorko/internal/domain/session/service"
 	domainUsrRepoDbP "github.com/rendau/zorko/internal/domain/usr/repo/db"
 	domainUsrServiceP "github.com/rendau/zorko/internal/domain/usr/service"
@@ -57,6 +61,9 @@ import (
 	serviceProjectlabelServiceP "github.com/rendau/zorko/internal/service/projectlabel/service"
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
 	serviceRatelimitServiceP "github.com/rendau/zorko/internal/service/ratelimit/service"
+	serviceReplaygcServiceP "github.com/rendau/zorko/internal/service/replaygc/service"
+	serviceReplaylimitServiceP "github.com/rendau/zorko/internal/service/replaylimit/service"
+	serviceReplayprocServiceP "github.com/rendau/zorko/internal/service/replayproc/service"
 	serviceSearchqueryServiceP "github.com/rendau/zorko/internal/service/searchquery/service"
 	serviceSitefetchServiceP "github.com/rendau/zorko/internal/service/sitefetch/service"
 	serviceSymbolicateP "github.com/rendau/zorko/internal/service/symbolicate"
@@ -79,6 +86,8 @@ type App struct {
 	pgpool *pgxpool.Pool
 	chConn driver.Conn
 	queue  *serviceQueueServiceP.Service
+	// описания сегментов записей сессий (ADR-012); nil — S3 не настроен, записи выключены
+	replayQueue *serviceQueueServiceP.Service
 
 	keyCache     *serviceKeycacheServiceP.Service
 	projectLabel *serviceProjectlabelServiceP.Service
@@ -86,6 +95,8 @@ type App struct {
 	symbolicator *serviceSymbolicateServiceP.Service
 	processor    *serviceProcessorServiceP.Service
 	artifactGc   *serviceArtifactgcServiceP.Service
+	replayProc   *serviceReplayprocServiceP.Service
+	replayGc     *serviceReplaygcServiceP.Service
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
@@ -138,8 +149,9 @@ func (a *App) Init() {
 
 	// s3 + artifact (карты исходников, ADR-009); без S3_ENDPOINT — выключены
 	var artifactService *domainArtifactServiceP.Service
+	var s3Client *infraS3P.Client
 	if config.Conf.S3Endpoint != "" {
-		s3Client, err := infraS3P.New(infraS3P.Config{
+		s3Client, err = infraS3P.New(infraS3P.Config{
 			Endpoint:  config.Conf.S3Endpoint,
 			Region:    config.Conf.S3Region,
 			Bucket:    config.Conf.S3Bucket,
@@ -153,7 +165,17 @@ func (a *App) Init() {
 		ctxCancel()
 		artifactService = domainArtifactServiceP.New(domainArtifactRepoDbP.New(a.pgpool), domainArtifactRepoBlobP.New(s3Client))
 	} else {
-		slog.Warn("S3_ENDPOINT is empty: source maps are disabled")
+		slog.Warn("S3_ENDPOINT is empty: source maps and session replays are disabled")
+	}
+
+	// replay (записи сессий, ADR-012..015): описания и связи — ClickHouse, тела — S3; без S3 тел нет
+	var replayService *domainReplayServiceP.Service
+	{
+		var replayBlob domainReplayServiceP.RepoBlobI
+		if s3Client != nil {
+			replayBlob = domainReplayRepoBlobP.New(s3Client)
+		}
+		replayService = domainReplayServiceP.New(domainReplayRepoChP.New(a.chConn), replayBlob, domainReplayRepoDbP.New(a.pgpool))
 	}
 
 	// session
@@ -230,6 +252,26 @@ func (a *App) Init() {
 		errCheck(err, "queue.EnsureTopic")
 	}
 
+	// replay queue: своя тема и группа, чтобы поток записей не задерживал ошибки (ADR-012)
+	if s3Client != nil && (config.Conf.IngestEnabled || config.Conf.ProcessorEnabled) {
+		a.replayQueue, err = serviceQueueServiceP.New(serviceQueueServiceP.Config{
+			Brokers:         config.Conf.KafkaBrokers,
+			Topic:           config.Conf.KafkaTopicReplays,
+			ConsumerGroup:   config.Conf.KafkaConsumerGroup + "-replay",
+			TopicPartitions: config.Conf.KafkaTopicPartitions,
+			TopicRetention:  config.Conf.KafkaTopicRetention,
+			WithProducer:    config.Conf.IngestEnabled,
+			WithConsumer:    config.Conf.ProcessorEnabled,
+			FetchMaxWait:    config.Conf.ProcessorBatchWait,
+		})
+		errCheck(err, "replay queue init")
+
+		ctx, ctxCancel := context.WithTimeout(a.ctx, 15*time.Second)
+		err = a.replayQueue.EnsureTopic(ctx)
+		ctxCancel()
+		errCheck(err, "replayQueue.EnsureTopic")
+	}
+
 	// project label (имена проектов для меток метрик приёма и обработки)
 	if config.Conf.IngestEnabled || config.Conf.ProcessorEnabled {
 		a.projectLabel = serviceProjectlabelServiceP.New(projectService, 30*time.Second)
@@ -239,8 +281,17 @@ func (a *App) Init() {
 	if config.Conf.IngestEnabled {
 		a.keyCache = serviceKeycacheServiceP.New(projectKeyService, 30*time.Second)
 		rateLimiter := serviceRatelimitServiceP.New()
-		ingestUsecase := usecaseIngestP.New(a.keyCache, rateLimiter, a.queue, a.projectLabel)
-		ingestHandler := handlerIngestP.New(ingestUsecase, config.Conf.IngestMaxBodyBytes, config.Conf.IngestMaxEventBytes)
+		// записи сессий: без S3 (replayQueue == nil) — nil-интерфейсы, приём отвечает «остановить запись»
+		var replayStore usecaseIngestP.ReplayStoreI
+		var replayQueue usecaseIngestP.QueueI
+		if a.replayQueue != nil {
+			replayStore = replayService
+			replayQueue = a.replayQueue
+		}
+		ingestUsecase := usecaseIngestP.New(a.keyCache, rateLimiter, a.queue, a.projectLabel,
+			replayStore, replayQueue, serviceReplaylimitServiceP.New())
+		ingestHandler := handlerIngestP.New(ingestUsecase, config.Conf.IngestMaxBodyBytes, config.Conf.IngestMaxEventBytes,
+			config.Conf.ReplayMaxSegmentBytes)
 
 		// Sentry API для sentry-cli: заливка карт и релизы (на том же адресе, что DSN)
 		if artifactService != nil {
@@ -291,13 +342,31 @@ func (a *App) Init() {
 			}, artifactService)
 		}
 
+		// записи сессий: связи с проблемами, описания сегментов, уборка (ADR-012, ADR-014); без S3 — выключены
+		var replayLinker serviceProcessorServiceP.ReplayLinker
+		if a.replayQueue != nil {
+			replayLinker = replayService
+
+			a.replayProc = serviceReplayprocServiceP.New(serviceReplayprocServiceP.Config{
+				BatchSize:    config.Conf.ProcessorBatchSize,
+				RetryMin:     time.Second,
+				RetryMax:     30 * time.Second,
+				StageTimeout: 30 * time.Second,
+			}, a.replayQueue, serviceNormalizeServiceP.New(), replayService, a.projectLabel)
+
+			a.replayGc = serviceReplaygcServiceP.New(serviceReplaygcServiceP.Config{
+				Retention: config.Conf.ReplayRetention,
+			}, replayService)
+		}
+
 		a.processor = serviceProcessorServiceP.New(serviceProcessorServiceP.Config{
 			BatchSize:      config.Conf.ProcessorBatchSize,
 			StorePerMinute: int64(config.Conf.IssueEventStorePerMinute),
 			RetryMin:       time.Second,
 			RetryMax:       30 * time.Second,
 			StageTimeout:   30 * time.Second,
-		}, a.queue, serviceNormalizeServiceP.New(), symbolicator, serviceGroupingServiceP.New(), issueService, eventService, a.projectLabel)
+		}, a.queue, serviceNormalizeServiceP.New(), symbolicator, serviceGroupingServiceP.New(), issueService, eventService,
+			replayLinker, a.projectLabel)
 	}
 
 	// issue, event, tag (чтение для интерфейса)
@@ -419,6 +488,11 @@ func (a *App) Start() {
 	// queue: замер отставания группы обработки (при включённой обработке)
 	a.queue.Start(a.ctx)
 
+	// replay queue: то же для описаний сегментов записей
+	if a.replayQueue != nil {
+		a.replayQueue.Start(a.ctx)
+	}
+
 	// assembler (сборка архивов карт)
 	if a.assembler != nil {
 		a.assembler.Start(a.ctx)
@@ -435,9 +509,19 @@ func (a *App) Start() {
 		slog.Info("processor started")
 	}
 
+	// replay proc (описания сегментов записей → ClickHouse)
+	if a.replayProc != nil {
+		a.replayProc.Start(a.ctx)
+	}
+
 	// artifact gc
 	if a.artifactGc != nil {
 		a.artifactGc.Start(a.ctx)
+	}
+
+	// replay gc
+	if a.replayGc != nil {
+		a.replayGc.Start(a.ctx)
 	}
 
 	// ingest http server
@@ -563,6 +647,11 @@ func (a *App) WaitJobs() {
 	// queue
 	a.queue.Wait()
 
+	// replay queue
+	if a.replayQueue != nil {
+		a.replayQueue.Wait()
+	}
+
 	// assembler: текущие сборки отменены контекстом и записывают своё состояние
 	if a.assembler != nil {
 		a.assembler.Wait()
@@ -578,9 +667,19 @@ func (a *App) WaitJobs() {
 		a.processor.Wait()
 	}
 
+	// replay proc: дописывает и подтверждает текущую пачку
+	if a.replayProc != nil {
+		a.replayProc.Wait()
+	}
+
 	// artifact gc
 	if a.artifactGc != nil {
 		a.artifactGc.Wait()
+	}
+
+	// replay gc
+	if a.replayGc != nil {
+		a.replayGc.Wait()
 	}
 }
 
@@ -592,6 +691,10 @@ func (a *App) Exit() {
 	}
 
 	a.queue.Close()
+
+	if a.replayQueue != nil {
+		a.replayQueue.Close()
+	}
 
 	_ = a.chConn.Close()
 

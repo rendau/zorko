@@ -5,6 +5,8 @@ import (
 	"time"
 
 	projectKeyModel "github.com/rendau/zorko/internal/domain/project_key/model"
+	replayModel "github.com/rendau/zorko/internal/domain/replay/model"
+	"github.com/rendau/zorko/internal/service/projectlabel"
 	queueModel "github.com/rendau/zorko/internal/service/queue/model"
 )
 
@@ -18,6 +20,16 @@ type RateLimiterI interface {
 
 type ProjectLabelI interface {
 	Label(projectId int64) string
+	Replay(projectId int64) projectlabel.ReplaySettings
+}
+
+// ReplayStoreI — тела сегментов записей в S3 (ADR-012)
+type ReplayStoreI interface {
+	PutSegmentBody(ctx context.Context, seg *replayModel.Segment, body []byte, compressed bool) (int64, error)
+}
+
+type ReplayLimitI interface {
+	Allow(projectId int64, limit int32, now time.Time) (bool, time.Duration)
 }
 
 type QueueI interface {

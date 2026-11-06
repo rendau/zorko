@@ -6,6 +6,7 @@ import (
 
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	issueModel "github.com/rendau/zorko/internal/domain/issue/model"
+	replayModel "github.com/rendau/zorko/internal/domain/replay/model"
 	queueModel "github.com/rendau/zorko/internal/service/queue/model"
 )
 
@@ -32,6 +33,12 @@ type issueServiceI interface {
 
 type eventServiceI interface {
 	Store(ctx context.Context, all []*eventModel.Event, full []*eventModel.Event) error
+}
+
+// ReplayLinker — связь записи сессии с проблемой по тегу replayId (ADR-014); экспортирован для
+// композиции: без S3 передаётся nil-интерфейс
+type ReplayLinker interface {
+	InsertLinks(ctx context.Context, links []*replayModel.Link) error
 }
 
 type projectLabelI interface {

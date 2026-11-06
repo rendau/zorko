@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/samber/lo"
-
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	"github.com/rendau/zorko/internal/errs"
 	usecase "github.com/rendau/zorko/internal/usecase/ingest"
@@ -18,16 +16,18 @@ import (
 
 // Handler — приём событий по протоколу Sentry (ADR-001): /api/{project_id}/envelope/ и /store/
 type Handler struct {
-	usecase       *usecase.Usecase
-	maxBodyBytes  int64
-	maxEventBytes int64
+	usecase         *usecase.Usecase
+	maxBodyBytes    int64
+	maxEventBytes   int64
+	maxSegmentBytes int64 // тело сегмента записи сессии
 }
 
-func New(uc *usecase.Usecase, maxBodyBytes, maxEventBytes int64) *Handler {
+func New(uc *usecase.Usecase, maxBodyBytes, maxEventBytes, maxSegmentBytes int64) *Handler {
 	return &Handler{
-		usecase:       uc,
-		maxBodyBytes:  maxBodyBytes,
-		maxEventBytes: maxEventBytes,
+		usecase:         uc,
+		maxBodyBytes:    maxBodyBytes,
+		maxEventBytes:   maxEventBytes,
+		maxSegmentBytes: maxSegmentBytes,
 	}
 }
 
@@ -75,8 +75,16 @@ func (h *Handler) envelope(w http.ResponseWriter, r *http.Request, project strin
 	}
 
 	events := make([]*eventModel.RawEvent, 0, 1)
+	var replayEvent, replayRecording []byte
 	for _, item := range env.Items {
-		if item.Type != "event" {
+		switch {
+		case item.Type == "replay_event" && replayEvent == nil:
+			replayEvent = item.Payload
+			continue
+		case item.Type == "replay_recording" && replayRecording == nil:
+			replayRecording = item.Payload
+			continue
+		case item.Type != "event":
 			metricItemDropped.WithLabelValues(itemTypeLabel(item.Type), project).Inc()
 			continue
 		}
@@ -95,7 +103,28 @@ func (h *Handler) envelope(w http.ResponseWriter, r *http.Request, project strin
 		responseId = events[0].EventId
 	}
 
-	h.ingest(w, r, project, projectId, publicKey, events, responseId)
+	h.ingest(w, r, project, projectId, publicKey, events, h.replay(project, replayEvent, replayRecording), responseId)
+}
+
+// replay — сегмент записи из пары частей; неполная пара или неверная форма — nil (исход — в метрике)
+func (h *Handler) replay(project string, event, recording []byte) *usecase.RawReplay {
+	if event == nil && recording == nil {
+		return nil
+	}
+	if int64(len(event)) > h.maxEventBytes || int64(len(recording)) > h.maxSegmentBytes {
+		metricReplaySegment.WithLabelValues(usecase.ReplayResultTooLarge, project).Inc()
+		return nil
+	}
+	if event == nil || recording == nil {
+		metricReplaySegment.WithLabelValues(usecase.ReplayResultInvalid, project).Inc()
+		return nil
+	}
+	replay, err := parseReplay(event, recording)
+	if err != nil {
+		metricReplaySegment.WithLabelValues(usecase.ReplayResultInvalid, project).Inc()
+		return nil
+	}
+	return replay
 }
 
 func (h *Handler) store(w http.ResponseWriter, r *http.Request, project string) {
@@ -124,7 +153,7 @@ func (h *Handler) store(w http.ResponseWriter, r *http.Request, project string) 
 		responseId = events[0].EventId
 	}
 
-	h.ingest(w, r, project, projectId, publicKeyFromRequest(r), events, responseId)
+	h.ingest(w, r, project, projectId, publicKeyFromRequest(r), events, nil, responseId)
 }
 
 func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request, project string) (int64, []byte, bool) {
@@ -148,17 +177,27 @@ func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request, project st
 }
 
 func (h *Handler) ingest(w http.ResponseWriter, r *http.Request, project string, projectId int64, publicKey string,
-	events []*eventModel.RawEvent, responseId string) {
+	events []*eventModel.RawEvent, replay *usecase.RawReplay, responseId string) {
 	// запрос SDK не должен обрываться вместе с соединением клиента посреди записи в очередь
 	ctx := context.WithoutCancel(r.Context())
 
-	err := h.usecase.Ingest(ctx, &usecase.Req{
+	rep, err := h.usecase.Ingest(ctx, &usecase.Req{
 		ProjectId:  projectId,
 		PublicKey:  publicKey,
 		OriginHost: originHost(r),
 		ClientIp:   clientIp(r),
 		Events:     events,
+		Replay:     replay,
 	})
+	if rep != nil && rep.ReplayResult != "" {
+		metricReplaySegment.WithLabelValues(rep.ReplayResult, project).Inc()
+		if rep.ReplayResult == usecase.ReplayResultAccepted {
+			metricReplayBytes.WithLabelValues(project).Add(float64(len(replay.Body)))
+			if replay.SegmentId == 0 {
+				metricReplayNew.WithLabelValues(replay.Type, project).Inc()
+			}
+		}
+	}
 
 	if rateErr, ok := errors.AsType[usecase.RateLimitedError](err); ok {
 		seconds := strconv.Itoa(max(int(rateErr.RetryAfter.Seconds()), 1))
@@ -182,8 +221,20 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request, project string,
 	}
 
 	// запрос без единой ошибки (отметки сессий, отчёты SDK) — принят, но в проблемы ничего не попадает
-	metricRequestTotal.WithLabelValues(lo.Ternary(len(events) > 0, resultAccepted, resultNoEvents), project).Inc()
+	result := resultNoEvents
+	switch {
+	case len(events) > 0:
+		result = resultAccepted
+	case rep.ReplayResult == usecase.ReplayResultAccepted:
+		result = resultReplay
+	}
+	metricRequestTotal.WithLabelValues(result, project).Inc()
 	metricEventAccepted.WithLabelValues(project).Add(float64(len(events)))
+
+	// запись не нужна проекту: браузер перестаёт её писать и слать (ADR-013); ошибки идут как прежде
+	if rep.ReplayStop > 0 {
+		w.Header().Set("X-Sentry-Rate-Limits", strconv.Itoa(max(int(rep.ReplayStop.Seconds()), 1))+":replay:project")
+	}
 
 	writeJson(w, http.StatusOK, map[string]string{"id": responseId})
 }

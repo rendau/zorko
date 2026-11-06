@@ -13,6 +13,7 @@ import (
 
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	issueModel "github.com/rendau/zorko/internal/domain/issue/model"
+	replayModel "github.com/rendau/zorko/internal/domain/replay/model"
 	groupingService "github.com/rendau/zorko/internal/service/grouping/service"
 	normalizeService "github.com/rendau/zorko/internal/service/normalize/service"
 	queueModel "github.com/rendau/zorko/internal/service/queue/model"
@@ -102,7 +103,7 @@ const typeErrorPayload = `{"exception":{"values":[{"type":"TypeError","value":"x
 func run(t *testing.T, q *queueFake, issues *issueFake, events *eventFake) {
 	t.Helper()
 	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
-		q, normalizeService.New(), nil, groupingService.New(), issues, events, projectLabelMock{})
+		q, normalizeService.New(), nil, groupingService.New(), issues, events, nil, projectLabelMock{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -171,7 +172,7 @@ func TestShutdownDuringOutageAbandonsBatch(t *testing.T) {
 	events := &eventFake{alwaysErr: true}
 
 	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
-		q, normalizeService.New(), nil, groupingService.New(), issues, events, projectLabelMock{})
+		q, normalizeService.New(), nil, groupingService.New(), issues, events, nil, projectLabelMock{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.Start(ctx)
@@ -205,3 +206,45 @@ func TestHangingDatabaseIsRetried(t *testing.T) {
 type projectLabelMock struct{}
 
 func (projectLabelMock) Label(projectId int64) string { return "p" + strconv.FormatInt(projectId, 10) }
+
+type linkerFake struct {
+	calls int
+	links []*replayModel.Link
+}
+
+func (f *linkerFake) InsertLinks(_ context.Context, links []*replayModel.Link) error {
+	f.calls++
+	f.links = links
+	return nil
+}
+
+func TestReplayLinksForAllEvents(t *testing.T) {
+	const replayId = "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+	withReplay := `{"exception":{"values":[{"type":"TypeError","value":"x"}]},"tags":{"replayId":"` + replayId + `"}}`
+	q := &queueFake{batches: [][]*queueModel.Event{{
+		{EventId: "11111111111111111111111111111111", ProjectId: 1, ReceivedAt: time.Now(), Payload: []byte(withReplay)},
+		{EventId: "22222222222222222222222222222222", ProjectId: 1, ReceivedAt: time.Now(), Payload: []byte(withReplay)},
+		ev(1, typeErrorPayload), // без записи
+	}}}
+	issues := &issueFake{allowed: 1}
+	events := &eventFake{}
+	linker := &linkerFake{}
+
+	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
+		q, normalizeService.New(), nil, groupingService.New(), issues, events, linker, projectLabelMock{})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	q.afterAll = cancel
+	s.Start(ctx)
+	s.Wait()
+
+	require.Equal(t, 1, linker.calls)
+	require.Len(t, linker.links, 2, "связь и у ошибки, сохранённой только счётчиком")
+	for _, l := range linker.links {
+		assert.Equal(t, replayId, l.ReplayId)
+		assert.NotZero(t, l.IssueId)
+		assert.EqualValues(t, 1, l.ProjectId)
+	}
+	assert.ElementsMatch(t, []string{"11111111111111111111111111111111", "22222222222222222222222222222222"},
+		[]string{linker.links[0].EventId, linker.links[1].EventId})
+}

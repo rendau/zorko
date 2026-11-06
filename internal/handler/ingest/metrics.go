@@ -22,6 +22,21 @@ var (
 		Name: "ingest_item_dropped_total",
 	}, []string{"type", "project"})
 
+	// сегменты записей сессий по исходу (usecase.ReplayResult*)
+	metricReplaySegment = metrics.Factory.NewCounterVec(prometheus.CounterOpts{
+		Name: "replay_segment_total",
+	}, []string{"result", "project"})
+
+	// принятые тела сегментов, байт (как пришли от SDK)
+	metricReplayBytes = metrics.Factory.NewCounterVec(prometheus.CounterOpts{
+		Name: "replay_bytes_total",
+	}, []string{"project"})
+
+	// новые записи (принятый сегмент 0) по виду: buffer — из-за ошибки, session — доля сессий
+	metricReplayNew = metrics.Factory.NewCounterVec(prometheus.CounterOpts{
+		Name: "replay_new_total",
+	}, []string{"replay_type", "project"})
+
 	// полное время ответа SDK: чтение тела, проверки, запись в очередь
 	metricRequestDuration = metrics.Factory.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "ingest_request_duration_seconds",
@@ -31,7 +46,8 @@ var (
 
 const (
 	resultAccepted    = "accepted"  // принят, в нём есть хотя бы одна ошибка
-	resultNoEvents    = "no_events" // принят, но ошибок в нём нет: служебное SDK (session, client_report…) или ошибка больше предела
+	resultNoEvents    = "no_events" // принят, но ошибок в нём нет: служебное SDK (session, client_report…), ошибка больше предела, отброшенная запись
+	resultReplay      = "replay"    // принят сегмент записи сессии (ошибок в запросе нет)
 	resultRateLimited = "rate_limited"
 	resultForbidden   = "forbidden"
 	resultTooLarge    = "too_large"

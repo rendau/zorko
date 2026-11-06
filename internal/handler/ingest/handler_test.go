@@ -19,9 +19,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	projectModel "github.com/rendau/zorko/internal/domain/project/model"
 	projectKeyModel "github.com/rendau/zorko/internal/domain/project_key/model"
+	replayModel "github.com/rendau/zorko/internal/domain/replay/model"
+	"github.com/rendau/zorko/internal/service/projectlabel"
 	queueModel "github.com/rendau/zorko/internal/service/queue/model"
 	ratelimitService "github.com/rendau/zorko/internal/service/ratelimit/service"
+	replaylimitService "github.com/rendau/zorko/internal/service/replaylimit/service"
 	usecase "github.com/rendau/zorko/internal/usecase/ingest"
 )
 
@@ -52,19 +56,50 @@ func (m *queueMock) PublishEvents(_ context.Context, events []*queueModel.Event)
 	return nil
 }
 
-type projectLabelMock map[int64]string
+type projectLabelMock struct {
+	labels map[int64]string
+	replay map[int64]projectlabel.ReplaySettings
+}
 
-func (m projectLabelMock) Label(projectId int64) string {
-	if label, ok := m[projectId]; ok {
+func (m *projectLabelMock) Label(projectId int64) string {
+	if label, ok := m.labels[projectId]; ok {
 		return label
 	}
 	return "unknown"
 }
 
+func (m *projectLabelMock) Replay(projectId int64) projectlabel.ReplaySettings {
+	if v, ok := m.replay[projectId]; ok {
+		return v
+	}
+	return projectlabel.ReplaySettings{Mode: projectModel.ReplayModeOff}
+}
+
+// replayStoreMock — S3 для тел сегментов
+type replayStoreMock struct {
+	bodies     map[string][]byte
+	compressed map[string]bool
+	err        error
+}
+
+func (m *replayStoreMock) PutSegmentBody(_ context.Context, seg *replayModel.Segment, body []byte, compressed bool) (int64, error) {
+	if m.err != nil {
+		return 0, m.err
+	}
+	key := replayModel.SegmentKey(seg.ReceivedAt, seg.ProjectId, seg.ReplayId, seg.SegmentId)
+	m.bodies[key] = body
+	m.compressed[key] = compressed
+	return int64(len(body)), nil
+}
+
 type testEnv struct {
-	router http.Handler
-	queue  *queueMock
-	keys   *keyCacheMock
+	router       http.Handler
+	queue        *queueMock
+	keys         *keyCacheMock
+	projects     *projectLabelMock
+	replayStore  *replayStoreMock
+	replayQueue  *queueMock
+	replayLimits *replaylimitService.Service
 }
 
 func newTestEnv(maxBody, maxEvent int64) *testEnv {
@@ -72,8 +107,22 @@ func newTestEnv(maxBody, maxEvent int64) *testEnv {
 		testKey: {Id: 1, ProjectId: 1, PublicKey: testKey, Active: true},
 	}}
 	queue := &queueMock{}
-	uc := usecase.New(keys, ratelimitService.New(), queue, projectLabelMock{1: "mechta"})
-	return &testEnv{router: New(uc, maxBody, maxEvent).Router(), queue: queue, keys: keys}
+	projects := &projectLabelMock{labels: map[int64]string{1: "mechta"}, replay: map[int64]projectlabel.ReplaySettings{}}
+	store := &replayStoreMock{bodies: map[string][]byte{}, compressed: map[string]bool{}}
+	replayQueue := &queueMock{}
+	limits := replaylimitService.New()
+	env := &testEnv{queue: queue, keys: keys, projects: projects, replayStore: store, replayQueue: replayQueue, replayLimits: limits}
+	env.router = New(env.usecase(), maxBody, maxEvent, 1<<20).Router()
+	return env
+}
+
+func (e *testEnv) usecase() *usecase.Usecase {
+	return usecase.New(e.keys, ratelimitService.New(), e.queue, e.projects, e.replayStore, e.replayQueue, e.replayLimits)
+}
+
+// newUsecaseWithoutReplay — как в app.go без S3: хранилище и очередь записей — nil-интерфейсы
+func newUsecaseWithoutReplay(e *testEnv) *usecase.Usecase {
+	return usecase.New(e.keys, ratelimitService.New(), e.queue, e.projects, nil, nil, e.replayLimits)
 }
 
 func (e *testEnv) do(t *testing.T, r *http.Request) *httptest.ResponseRecorder {

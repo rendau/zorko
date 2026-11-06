@@ -1,5 +1,5 @@
--- сегменты записей сессий (ADR-012): описание сегмента, тело — в S3.
--- Партиция и TTL — по дню начала записи: запись целиком живёт и удаляется вместе с папкой дня в S3
+-- сегменты записей сессий (ADR-012): описание сегмента, тело — в S3 в папке дня приёма (received_at).
+-- Партиция и TTL — по времени приёма (часы сервера), как папки S3: часы устройства бывают неточны
 create table if not exists replay_segment
 (
     project_id   UInt64,
@@ -24,9 +24,9 @@ create table if not exists replay_segment
     size         UInt32
 )
 engine = ReplacingMergeTree
-partition by toYYYYMMDD(replay_start)
+partition by toYYYYMMDD(received_at)
 order by (project_id, replay_id, segment_id)
-ttl toDateTime(replay_start) + interval 30 day
+ttl toDateTime(received_at) + interval 30 day
 settings ttl_only_drop_parts = 1;
 
 -- связь записи с проблемой (ADR-014): по тегу replayId каждой ошибки, а не только сохранённой полностью
@@ -36,7 +36,9 @@ create table if not exists replay_issue
     issue_id   UInt64,
     replay_id  UUID,
     event_id   UUID,
-    timestamp  DateTime64(3, 'UTC')
+    timestamp  DateTime64(3, 'UTC'),
+    -- ошибки одной записи (отметки на шкале проигрывателя) — без номера проблемы
+    index replay_id_idx replay_id type bloom_filter granularity 4
 )
 engine = ReplacingMergeTree
 partition by toYYYYMMDD(timestamp)

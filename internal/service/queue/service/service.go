@@ -222,13 +222,13 @@ func (s *Service) measureLag(ctx context.Context, admin *kadm.Client, timeout ti
 	}
 	if err != nil {
 		if ctx.Err() == nil {
-			metricConsumerLagErrorTotal.Inc()
+			metricConsumerLagErrorTotal.WithLabelValues(s.conf.Topic).Inc()
 			slog.Warn("queue: consumer lag", "error", err)
 		}
 		return
 	}
 
-	metricConsumerLag.Set(float64(group.Lag.Total()))
+	metricConsumerLag.WithLabelValues(s.conf.Topic).Set(float64(group.Lag.Total()))
 }
 
 func (s *Service) Wait() {
