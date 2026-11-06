@@ -279,6 +279,28 @@ func TestOrigin(t *testing.T) {
 	assert.Equal(t, http.StatusOK, env.do(t, r).Code, "без Origin и Referer — не браузер, пропускаем")
 }
 
+// Мобильные приложения на Capacitor шлют Origin capacitor://localhost (iOS) и https://localhost
+// (Android): без localhost в списке — 403, с ним — проходят (подсказка в окне ключа админки)
+func TestOriginMobileApp(t *testing.T) {
+	body := readFixture(t, "sentry-node-11.10.0/exception.envelope")
+	origins := []string{"capacitor://localhost", "https://localhost"}
+
+	env := newTestEnv(1<<20, 1<<20)
+	env.keys.keys[testKey].AllowedOrigin = []string{"*.mechta.kz"}
+	for _, origin := range origins {
+		r := envelopeReq("/api/1/envelope/?sentry_key="+testKey, body)
+		r.Header.Set("Origin", origin)
+		assert.Equal(t, http.StatusForbidden, env.do(t, r).Code, origin)
+	}
+
+	env.keys.keys[testKey].AllowedOrigin = []string{"*.mechta.kz", "localhost"}
+	for _, origin := range origins {
+		r := envelopeReq("/api/1/envelope/?sentry_key="+testKey, body)
+		r.Header.Set("Origin", origin)
+		assert.Equal(t, http.StatusOK, env.do(t, r).Code, origin)
+	}
+}
+
 func TestQueueUnavailable(t *testing.T) {
 	env := newTestEnv(1<<20, 1<<20)
 	env.queue.err = errors.New("broker down")

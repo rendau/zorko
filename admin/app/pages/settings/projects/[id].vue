@@ -57,7 +57,10 @@ const snippetTabs = computed(() => [
 ])
 const snippet = computed(() => snippets.value.find(s => s.id === snippetTab.value) ?? snippets.value[0])
 const orgSlug = computed(() => org.orgs.value.find(o => o.id === project.value?.org_id)?.slug ?? '')
-const build = computed(() => buildSnippet(ingestUrl(firstDsn.value), orgSlug.value, project.value?.slug ?? ''))
+const builds = computed(() => buildSnippets(ingestUrl(firstDsn.value), orgSlug.value, project.value?.slug ?? ''))
+const buildTab = ref('vite')
+const buildTabs = computed(() => builds.value.map(b => ({ label: b.label, value: b.id })))
+const build = computed(() => builds.value.find(b => b.id === buildTab.value) ?? builds.value[0]!)
 
 // #maps из плашки карточки проблемы — прокрутить к картам
 onMounted(() => {
@@ -76,6 +79,8 @@ const unwatchHash = watch(project, async (p) => {
 watch(project, (p) => {
   if (p && snippets.value.some(s => s.id === p.platform))
     snippetTab.value = p.platform
+  if (p?.platform === 'nuxt')
+    buildTab.value = 'nuxt'
   if (p?.platform === 'javascript')
     snippetTab.value = 'browser'
 })
@@ -136,25 +141,31 @@ watch(project, (p) => {
           <UTabs v-model="snippetTab" :items="snippetTabs" :content="false" variant="link" size="sm" />
           <div v-if="snippetTab === 'build'" class="space-y-2">
             <p class="text-xs text-muted">{{ t('settings.sdk.buildHint') }}</p>
-            <div class="flex items-center gap-1 rounded-md border border-default bg-elevated/40 px-3 py-1.5">
-              <code class="min-w-0 flex-1 truncate font-mono text-xs">{{ build.install }}</code>
-              <CopyButton :text="build.install" />
+            <UTabs v-model="buildTab" :items="buildTabs" :content="false" variant="pill" size="xs" class="w-fit" />
+            <div v-for="cmd in build.install" :key="cmd" class="flex items-center gap-1 rounded-md border border-default bg-elevated/40 px-3 py-1.5">
+              <code class="min-w-0 flex-1 truncate font-mono text-xs">{{ cmd }}</code>
+              <CopyButton :text="cmd" />
             </div>
             <div class="relative">
               <pre class="overflow-x-auto rounded-md border border-default bg-elevated/40 p-3 font-mono text-xs">{{ build.code }}</pre>
               <CopyButton :text="build.code" class="absolute right-2 top-2" />
             </div>
-            <p class="text-xs text-muted">{{ t('settings.sdk.buildCli') }}</p>
-            <div class="relative">
-              <pre class="overflow-x-auto rounded-md border border-default bg-elevated/40 p-3 font-mono text-xs">{{ build.cli }}</pre>
-              <CopyButton :text="build.cli" class="absolute right-2 top-2" />
-            </div>
+            <p v-if="build.id === 'nuxt'" class="text-xs text-muted">{{ t('settings.sdk.buildNuxt') }}</p>
+            <p class="text-xs text-muted">{{ t('settings.sdk.buildTrouble') }}</p>
+            <template v-if="build.cli">
+              <p class="text-xs text-muted">{{ t('settings.sdk.buildCli') }}</p>
+              <div class="relative">
+                <pre class="overflow-x-auto rounded-md border border-default bg-elevated/40 p-3 font-mono text-xs">{{ build.cli }}</pre>
+                <CopyButton :text="build.cli" class="absolute right-2 top-2" />
+              </div>
+            </template>
           </div>
           <div v-else-if="snippet" class="space-y-2">
-            <div class="flex items-center gap-1 rounded-md border border-default bg-elevated/40 px-3 py-1.5">
-              <code class="min-w-0 flex-1 truncate font-mono text-xs">{{ snippet.install }}</code>
-              <CopyButton :text="snippet.install" />
+            <div v-for="cmd in snippet.install" :key="cmd" class="flex items-center gap-1 rounded-md border border-default bg-elevated/40 px-3 py-1.5">
+              <code class="min-w-0 flex-1 truncate font-mono text-xs">{{ cmd }}</code>
+              <CopyButton :text="cmd" />
             </div>
+            <p v-if="snippet.id === 'nuxt'" class="text-xs text-muted">{{ t('settings.sdk.nuxtHint') }}</p>
             <div class="relative">
               <pre class="overflow-x-auto rounded-md border border-default bg-elevated/40 p-3 font-mono text-xs">{{ snippet.code }}</pre>
               <CopyButton :text="snippet.code" class="absolute right-2 top-2" />

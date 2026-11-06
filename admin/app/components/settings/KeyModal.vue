@@ -21,12 +21,21 @@ watch(open, (v) => {
   }
 })
 
+const originList = computed(() => origins.value.split(/[\s,]+/).map(s => s.trim()).filter(Boolean))
+const mobileAllowed = computed(() => originList.value.some(o => o.toLowerCase() === MOBILE_ORIGIN || o === '*'))
+
+// Capacitor/Cordova шлют события с хоста localhost — дописываем его в непустой список
+// (пустой список и так пускает всех, кнопка там не показывается)
+function addMobile() {
+  origins.value = [...originList.value, MOBILE_ORIGIN].join('\n')
+}
+
 async function save() {
   const body = {
     label: label.value.trim(),
     active: active.value,
     rate_limit_per_sec: Number(rateLimit.value) || 0,
-    allowed_origin: { values: origins.value.split(/[\s,]+/).map(s => s.trim()).filter(Boolean) },
+    allowed_origin: { values: originList.value },
   }
   const ok = await run(async () => {
     if (props.projectKey)
@@ -57,6 +66,22 @@ async function save() {
         </UFormField>
         <UFormField :label="t('settings.key.origins')" :hint="t('settings.key.originsHint')">
           <UTextarea v-model="origins" :rows="3" class="w-full font-mono" />
+          <div class="mt-2 space-y-2">
+            <p class="text-xs text-muted">{{ t('settings.key.mobileHint') }}</p>
+            <UButton
+              v-if="originList.length && !mobileAllowed"
+              size="xs"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-smartphone"
+              :label="t('settings.key.addMobile')"
+              @click="addMobile"
+            />
+            <p v-else-if="originList.length" class="flex items-center gap-1 text-xs text-success">
+              <UIcon name="i-lucide-check" class="size-3.5" />
+              {{ t('settings.key.mobileAdded') }}
+            </p>
+          </div>
         </UFormField>
       </form>
     </template>

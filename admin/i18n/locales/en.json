@@ -234,14 +234,20 @@
       "anyOrigin": "any",
       "noDsn": "Ingest address is not configured (INGEST_PUBLIC_URL)",
       "deleteTitle": "Delete the key?",
-      "deleteDescription": "Apps with this DSN will stop sending errors."
+      "deleteDescription": "Apps with this DSN will stop sending errors.",
+      "mobileHint": "Capacitor and Cordova apps send errors from localhost (capacitor://localhost on iOS, https://localhost on Android). If the list is not empty and has no localhost, errors from phones are rejected. Errors from local development will pass too.",
+      "addMobile": "Allow mobile apps",
+      "mobileAdded": "Mobile apps allowed"
     },
     "sdk": {
       "title": "How to connect",
       "description": "Regular Sentry libraries — only the DSN changes.",
       "build": "Build: source maps",
-      "buildHint": "During the build the plugin uploads source maps to zorko and removes .map files so they do not reach the site. CI needs one variable, SENTRY_AUTH_TOKEN — an organization CI token (Projects → CI tokens).",
-      "buildCli": "Without the plugin — the same steps as commands after the build:"
+      "buildHint": "During the build the plugin uploads source maps to zorko and removes .map files so they do not reach the site. CI needs the SENTRY_AUTH_TOKEN variable — an organization CI token (Projects → CI tokens); without it no source maps are built.",
+      "buildCli": "Without the plugin — the same steps as commands after the build:",
+      "buildNuxt": "Errors are caught by the plugin from the Nuxt tab; here — release, environment and source map upload for the browser part.",
+      "buildTrouble": "Not uploading? URL, organization and project are required in the config — plugin 11.x does not take them from the token. If an upload from a laptop goes to localhost, the plugin remembered an old organization address in ~/.sentry/cli.db — build with SENTRY_CONFIG_DIR=$(mktemp -d). CI is not affected.",
+      "nuxtHint": "Keep attachErrorHandler: false — without it any component error opens the Nuxt error page (error.vue). Also shipped as a phone app (Capacitor)? Allow the localhost site on the key."
     },
     "maps": {
       "title": "Source maps",

@@ -3,41 +3,102 @@
 export interface SdkSnippet {
   id: string
   label: string
-  install: string
+  // команды установки: npm и то же через pnpm
+  install: string[]
   code: string
 }
 
+// Версия и окружение в браузерных примерах на Vite: версию кладёт vite.config (вкладка «Сборка: карты»),
+// окружение задаётся явно — MODE на тесте и бою одинаковый (production)
+// i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
+const viteReleaseEnv = `  // Версия сборки — задаётся в vite.config (вкладка «Сборка: карты»). Без версии
+  // карты всё равно находятся — по метке сборки (debug id)
+  release: import.meta.env.VITE_RELEASE,
+  // MODE на тесте и на бою одинаковый (production), поэтому окружение задаём явно
+  // при сборке: VITE_SENTRY_ENVIRONMENT=staging
+  environment: import.meta.env.DEV
+    ? 'development'
+    : (import.meta.env.VITE_SENTRY_ENVIRONMENT || 'production'),`
+
+// i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
 export function sdkSnippets(dsn: string): SdkSnippet[] {
   return [
     {
       id: 'vue',
       label: 'Vue',
-      install: 'npm install @sentry/vue',
+      install: ['npm install @sentry/vue', 'pnpm add @sentry/vue'],
       code: `import * as Sentry from '@sentry/vue'
 
 Sentry.init({
   app,
   dsn: '${dsn}',
-  release: import.meta.env.VITE_RELEASE,
-  environment: import.meta.env.MODE,
+${viteReleaseEnv}
+})`,
+    },
+    {
+      id: 'nuxt',
+      label: 'Nuxt',
+      install: ['npm install @sentry/vue', 'pnpm add @sentry/vue'],
+      code: `// app/plugins/00.sentry.client.ts (в Nuxt 3 — plugins/00.sentry.client.ts)
+// .client — только в браузере; 00. — первым среди ваших плагинов, чтобы ловить и их ошибки
+import * as Sentry from '@sentry/vue'
+
+export default defineNuxtPlugin((nuxtApp) => {
+  const config = useRuntimeConfig().public
+
+  Sentry.init({
+    // app нужен для имён роутов в событиях
+    app: nuxtApp.vueApp,
+    // Обязательно: иначе Sentry оборачивает app.config.errorHandler, Nuxt не может снять
+    // свой обработчик после загрузки, и любая ошибка в компоненте открывает error.vue.
+    // Ошибки компонентов берём из хуков Nuxt ниже.
+    attachErrorHandler: false,
+    dsn: '${dsn}',
+    // Версия и окружение — из runtimeConfig в nuxt.config (вкладка «Сборка: карты» → Nuxt).
+    // Без версии карты всё равно находятся — по метке сборки (debug id)
+    release: config.sentryRelease || undefined,
+    // NODE_ENV на тесте и на бою одинаковый (production), поэтому окружение задаём явно
+    environment: import.meta.dev ? 'development' : (config.sentryEnvironment || 'production'),
+  })
+
+  // Ошибка в любом компоненте
+  nuxtApp.hook('vue:error', (error, instance, info) => {
+    Sentry.captureException(error, {
+      mechanism: { handled: false, type: 'auto.function.nuxt.vue_error' },
+      captureContext: {
+        contexts: {
+          vue: {
+            componentName: instance?.$options.name ?? instance?.$options.__name,
+            lifecycleHook: info,
+          },
+        },
+      },
+    })
+  })
+
+  // Ошибка при старте приложения и в плагинах
+  nuxtApp.hook('app:error', (error) => {
+    Sentry.captureException(error, {
+      mechanism: { handled: false, type: 'auto.function.nuxt.app_error' },
+    })
+  })
 })`,
     },
     {
       id: 'react',
       label: 'React',
-      install: 'npm install @sentry/react',
+      install: ['npm install @sentry/react', 'pnpm add @sentry/react'],
       code: `import * as Sentry from '@sentry/react'
 
 Sentry.init({
   dsn: '${dsn}',
-  release: import.meta.env.VITE_RELEASE,
-  environment: import.meta.env.MODE,
+${viteReleaseEnv}
 })`,
     },
     {
       id: 'browser',
       label: 'JavaScript',
-      install: 'npm install @sentry/browser',
+      install: ['npm install @sentry/browser', 'pnpm add @sentry/browser'],
       code: `import * as Sentry from '@sentry/browser'
 
 Sentry.init({
@@ -49,7 +110,7 @@ Sentry.init({
     {
       id: 'flutter',
       label: 'Flutter',
-      install: 'flutter pub add sentry_flutter',
+      install: ['flutter pub add sentry_flutter'],
       code: `import 'package:sentry_flutter/sentry_flutter.dart';
 
 Future<void> main() async {
@@ -65,7 +126,7 @@ Future<void> main() async {
     {
       id: 'react-native',
       label: 'React Native',
-      install: 'npm install @sentry/react-native',
+      install: ['npm install @sentry/react-native', 'pnpm add @sentry/react-native'],
       code: `import * as Sentry from '@sentry/react-native'
 
 Sentry.init({
@@ -78,7 +139,11 @@ export default Sentry.wrap(App)`,
   ]
 }
 
-export const PLATFORMS = ['vue', 'react', 'javascript', 'flutter', 'react-native', 'node', 'other']
+export const PLATFORMS = ['vue', 'nuxt', 'react', 'javascript', 'flutter', 'react-native', 'node', 'other']
+
+// Мобильные приложения на Capacitor/Cordova шлют события с Origin capacitor://localhost (iOS)
+// и https://localhost (Android) — для приёма это хост localhost
+export const MOBILE_ORIGIN = 'localhost'
 
 // ingestUrl — адрес сервера приёма из DSN: http(s)://<хост>[/<путь>] без ключа и номера проекта
 export function ingestUrl(dsn: string): string {
@@ -93,36 +158,155 @@ export function ingestUrl(dsn: string): string {
 }
 
 export interface BuildSnippet {
-  install: string
+  id: string
+  label: string
+  install: string[]
   code: string
+  // то же голыми командами sentry-cli; пусто — не показываем
   cli: string
 }
 
-// buildSnippet — заливка карт при сборке: @sentry/vite-plugin и то же голым sentry-cli.
-// Токен CI организации (SENTRY_AUTH_TOKEN) несёт адрес и организацию; .map не уезжают на сайт.
-export function buildSnippet(url: string, org: string, project: string): BuildSnippet {
-  return {
-    install: 'npm install --save-dev @sentry/vite-plugin',
-    code: `// vite.config.js
+// Версия сборки — общая для vite.config и nuxt.config: версия из package.json + короткий хеш коммита
+// i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
+function releaseFn(project: string): string {
+  return `// Версия сборки: версия из package.json + короткий хеш коммита (${project}@1.4.2-a1b2c3d).
+// Та же версия уходит и с ошибками, и с картами
+function buildRelease() {
+  const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
+  let sha = process.env.GITHUB_SHA?.slice(0, 7)
+  if (!sha) {
+    try {
+      sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    }
+    catch {
+      // сборка без git — обходимся версией
+    }
+  }
+  return sha ? \`${project}@\${version}-\${sha}\` : \`${project}@\${version}\`
+}
+
+const release = buildRelease()`
+}
+
+// Общие поля плагина: адрес, организация и проект обязательны — плагин 11.x не берёт их из токена
+// i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
+function pluginOptions(url: string, org: string, project: string, indent: string): string {
+  return [
+    `url: '${url}/',`,
+    `org: '${org}',`,
+    `project: '${project}',`,
+    'authToken,',
+    '// Карта ищется прежде всего по метке (debug id), которую плагин ставит в каждый файл;',
+    '// версия — запасной путь. Коммиты zorko не хранит — их отправку выключаем',
+    'release: { name: release, setCommits: false },',
+  ].map(line => indent + line).join('\n')
+}
+
+const pluginInstall = ['npm install --save-dev @sentry/vite-plugin', 'pnpm add -D @sentry/vite-plugin']
+
+// buildSnippets — заливка карт при сборке: @sentry/vite-plugin для Vite и для Nuxt, то же голым sentry-cli.
+// Токен CI организации — в SENTRY_AUTH_TOKEN; без него карты не строятся; .map не уезжают на сайт.
+// i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
+export function buildSnippets(url: string, org: string, project: string): BuildSnippet[] {
+  const cli = `npx @sentry/cli sourcemaps inject ./dist
+# карта находится по метке (debug id), которую ставит inject; --release "<версия>" — по желанию
+npx @sentry/cli sourcemaps upload --org ${org} --project ${project} ./dist
+find ./dist -name '*.map' -delete`
+
+  return [
+    {
+      id: 'vite',
+      label: 'Vite',
+      install: pluginInstall,
+      cli,
+      code: `// vite.config.js
+import { execSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 
+${releaseFn(project)}
+
+// Без токена (локальная сборка) карты не строятся и не заливаются
+const authToken = process.env.SENTRY_AUTH_TOKEN
+
 export default defineConfig({
-  build: { sourcemap: 'hidden' },
+  // В коде — import.meta.env.VITE_RELEASE (вкладка Vue / React)
+  define: { 'import.meta.env.VITE_RELEASE': JSON.stringify(release) },
+  // 'hidden' — карты строятся, но ссылки на них в сжатом JS нет
+  build: { sourcemap: authToken ? 'hidden' : false },
   plugins: [
-    sentryVitePlugin({
-      url: '${url}/',
-      org: '${org}',
-      project: '${project}',
-      authToken: process.env.SENTRY_AUTH_TOKEN,
-      release: { name: process.env.VITE_RELEASE },
+    // ...ваши плагины: vue(), react()…
+    authToken && sentryVitePlugin({
+${pluginOptions(url, org, project, '      ')}
       sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+      // иначе плагин шлёт свою телеметрию в sentry.io
       telemetry: false,
     }),
   ],
 })`,
-    cli: `npx @sentry/cli sourcemaps inject ./dist
-npx @sentry/cli sourcemaps upload --org ${org} --project ${project} --release "$VITE_RELEASE" ./dist
-find ./dist -name '*.map' -delete`,
-  }
+    },
+    {
+      id: 'nuxt',
+      label: 'Nuxt',
+      install: pluginInstall,
+      cli: '',
+      code: `// nuxt.config.ts
+import { execSync } from 'node:child_process'
+import { readdirSync, readFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
+
+${releaseFn(project)}
+
+// Без токена (локальная сборка) карты не строятся вовсе: иначе .map без заливки остались бы на сайте
+const authToken = process.env.SENTRY_AUTH_TOKEN ?? ''
+
+// Плагин заливки — только для браузерной части сборки (окружение client)
+function sentryPlugins() {
+  if (!authToken)
+    return []
+  return sentryVitePlugin({
+${pluginOptions(url, org, project, '    ')}
+    // иначе плагин шлёт свою телеметрию в sentry.io
+    telemetry: false,
+  }).map(plugin => ({
+    ...plugin,
+    applyToEnvironment: (env: { name: string }) => env.name === 'client',
+  }))
+}
+
+export default defineNuxtConfig({
+  runtimeConfig: {
+    public: {
+      // В плагине — useRuntimeConfig().public (вкладка Nuxt)
+      sentryRelease: release,
+      // production / staging: NUXT_PUBLIC_SENTRY_ENVIRONMENT=staging на тестовом стенде
+      sentryEnvironment: 'production',
+    },
+  },
+
+  // Плагин — в vite.plugins, не в vite.$client: там plugins задать нельзя
+  vite: { plugins: [...sentryPlugins()] },
+
+  // 'hidden' — карты строятся, но ссылки на них в сжатом JS нет
+  sourcemap: { server: false, client: authToken ? 'hidden' : false },
+
+  hooks: {
+    // Карты уже залиты — убираем их из готовой статики. Опция плагина
+    // filesToDeleteAfterUpload в Nuxt промахивается: промежуточная папка сборки
+    // плавает (.nuxt или node_modules/.cache/nuxt/.nuxt), а publicDir — одна
+    'nitro:build:public-assets': (nitro) => {
+      if (!authToken)
+        return
+      const publicDir = nitro.options.output.publicDir
+      for (const file of readdirSync(publicDir, { recursive: true, encoding: 'utf8' })) {
+        if (file.endsWith('.map'))
+          rmSync(join(publicDir, file))
+      }
+    },
+  },
+})`,
+    },
+  ]
 }
