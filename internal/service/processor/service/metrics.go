@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	// события по исходу обработки
+	// события по исходу обработки; project — slug проекта или "unknown" (набор конечен)
 	metricEventTotal = metrics.Factory.NewCounterVec(prometheus.CounterOpts{
 		Name: "processor_event_total",
-	}, []string{"result"})
+	}, []string{"result", "project"})
 
 	// время этапов обработки пачки
 	metricBatchDuration = metrics.Factory.NewHistogramVec(prometheus.HistogramOpts{

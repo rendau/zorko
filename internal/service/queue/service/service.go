@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"sync"
 	"time"
@@ -28,6 +29,8 @@ type Config struct {
 	WithConsumer bool
 	// FetchMaxWait — сколько брокер копит данные для пачки, пока их меньше FetchMinBytes
 	FetchMaxWait time.Duration
+	// LagInterval — как часто спрашивать у брокера отставание группы (метрика); 0 — 15s
+	LagInterval time.Duration
 }
 
 type Service struct {
@@ -40,6 +43,8 @@ type Service struct {
 	polled   []*kgo.Record
 
 	closeOnce sync.Once
+
+	wg sync.WaitGroup
 }
 
 func New(conf Config) (*Service, error) {
@@ -179,6 +184,55 @@ func (s *Service) CommitPolled(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// Start — замер отставания группы обработки до отмены ctx (только при включённом consumer)
+func (s *Service) Start(ctx context.Context) {
+	if s.consumer == nil {
+		return
+	}
+
+	admin := kadm.NewClient(s.consumer)
+	interval := lo.Ternary(s.conf.LagInterval > 0, s.conf.LagInterval, 15*time.Second)
+
+	s.wg.Go(func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			s.measureLag(ctx, admin, interval)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	})
+}
+
+func (s *Service) measureLag(ctx context.Context, admin *kadm.Client, timeout time.Duration) {
+	lagCtx, lagCtxCancel := context.WithTimeout(ctx, timeout)
+	defer lagCtxCancel()
+
+	lags, err := admin.Lag(lagCtx, s.conf.ConsumerGroup)
+	group := lags[s.conf.ConsumerGroup]
+	if err == nil {
+		err = group.Error()
+	}
+	if err != nil {
+		if ctx.Err() == nil {
+			metricConsumerLagErrorTotal.Inc()
+			slog.Warn("queue: consumer lag", "error", err)
+		}
+		return
+	}
+
+	metricConsumerLag.Set(float64(group.Lag.Total()))
+}
+
+func (s *Service) Wait() {
+	s.wg.Wait()
 }
 
 // Close дожидается отправки буфера продюсера и выходит из группы; повторный вызов ничего не делает

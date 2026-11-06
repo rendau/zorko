@@ -54,6 +54,7 @@ import (
 	serviceLoginlimitServiceP "github.com/rendau/zorko/internal/service/loginlimit/service"
 	serviceNormalizeServiceP "github.com/rendau/zorko/internal/service/normalize/service"
 	serviceProcessorServiceP "github.com/rendau/zorko/internal/service/processor/service"
+	serviceProjectlabelServiceP "github.com/rendau/zorko/internal/service/projectlabel/service"
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
 	serviceRatelimitServiceP "github.com/rendau/zorko/internal/service/ratelimit/service"
 	serviceSearchqueryServiceP "github.com/rendau/zorko/internal/service/searchquery/service"
@@ -80,6 +81,7 @@ type App struct {
 	queue  *serviceQueueServiceP.Service
 
 	keyCache     *serviceKeycacheServiceP.Service
+	projectLabel *serviceProjectlabelServiceP.Service
 	assembler    *serviceAssembleServiceP.Service
 	symbolicator *serviceSymbolicateServiceP.Service
 	processor    *serviceProcessorServiceP.Service
@@ -228,11 +230,16 @@ func (a *App) Init() {
 		errCheck(err, "queue.EnsureTopic")
 	}
 
+	// project label (имена проектов для меток метрик приёма и обработки)
+	if config.Conf.IngestEnabled || config.Conf.ProcessorEnabled {
+		a.projectLabel = serviceProjectlabelServiceP.New(projectService, 30*time.Second)
+	}
+
 	// ingest
 	if config.Conf.IngestEnabled {
 		a.keyCache = serviceKeycacheServiceP.New(projectKeyService, 30*time.Second)
 		rateLimiter := serviceRatelimitServiceP.New()
-		ingestUsecase := usecaseIngestP.New(a.keyCache, rateLimiter, a.queue)
+		ingestUsecase := usecaseIngestP.New(a.keyCache, rateLimiter, a.queue, a.projectLabel)
 		ingestHandler := handlerIngestP.New(ingestUsecase, config.Conf.IngestMaxBodyBytes, config.Conf.IngestMaxEventBytes)
 
 		// Sentry API для sentry-cli: заливка карт и релизы (на том же адресе, что DSN)
@@ -290,7 +297,7 @@ func (a *App) Init() {
 			RetryMin:       time.Second,
 			RetryMax:       30 * time.Second,
 			StageTimeout:   30 * time.Second,
-		}, a.queue, serviceNormalizeServiceP.New(), symbolicator, serviceGroupingServiceP.New(), issueService, eventService)
+		}, a.queue, serviceNormalizeServiceP.New(), symbolicator, serviceGroupingServiceP.New(), issueService, eventService, a.projectLabel)
 	}
 
 	// issue, event, tag (чтение для интерфейса)
@@ -403,6 +410,14 @@ func (a *App) Start() {
 	if a.keyCache != nil {
 		a.keyCache.Start(a.ctx)
 	}
+
+	// project label
+	if a.projectLabel != nil {
+		a.projectLabel.Start(a.ctx)
+	}
+
+	// queue: замер отставания группы обработки (при включённой обработке)
+	a.queue.Start(a.ctx)
 
 	// assembler (сборка архивов карт)
 	if a.assembler != nil {
@@ -539,6 +554,14 @@ func (a *App) WaitJobs() {
 	if a.keyCache != nil {
 		a.keyCache.Wait()
 	}
+
+	// project label
+	if a.projectLabel != nil {
+		a.projectLabel.Wait()
+	}
+
+	// queue
+	a.queue.Wait()
 
 	// assembler: текущие сборки отменены контекстом и записывают своё состояние
 	if a.assembler != nil {

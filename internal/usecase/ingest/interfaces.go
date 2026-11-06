@@ -16,6 +16,10 @@ type RateLimiterI interface {
 	Allow(keyId int64, limitPerSec int32, n int) (bool, time.Duration)
 }
 
+type ProjectLabelI interface {
+	Label(projectId int64) string
+}
+
 type QueueI interface {
 	PublishEvents(ctx context.Context, events []*queueModel.Event) error
 }

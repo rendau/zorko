@@ -33,12 +33,13 @@ type Service struct {
 	grouper      grouperI
 	issueService issueServiceI
 	eventService eventServiceI
+	projectLabel projectLabelI
 
 	wg sync.WaitGroup
 }
 
 func New(conf Config, queue queueI, normalizer normalizerI, symbolicator symbolicatorI, grouper grouperI,
-	issueService issueServiceI, eventService eventServiceI) *Service {
+	issueService issueServiceI, eventService eventServiceI, projectLabel projectLabelI) *Service {
 	return &Service{
 		conf:         conf,
 		queue:        queue,
@@ -47,6 +48,7 @@ func New(conf Config, queue queueI, normalizer normalizerI, symbolicator symboli
 		grouper:      grouper,
 		issueService: issueService,
 		eventService: eventService,
+		projectLabel: projectLabel,
 	}
 }
 
@@ -130,12 +132,13 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 
 	all := make([]*eventModel.Event, 0, len(events))
 	full := make([]*eventModel.Event, 0, len(events))
+	var countedOnly, projectDeleted []*eventModel.Event
 	for i, k := range keys {
 		res := results[i]
 		groupEvents := groups[k]
 
 		if res.IssueId == 0 {
-			metricEventTotal.WithLabelValues(resultProjectDeleted).Add(float64(len(groupEvents)))
+			projectDeleted = append(projectDeleted, groupEvents...)
 			continue
 		}
 
@@ -144,9 +147,12 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 			all = append(all, ev)
 			if int64(j) < res.StoreAllowed {
 				full = append(full, ev)
+			} else {
+				countedOnly = append(countedOnly, ev)
 			}
 		}
 	}
+	s.countEvents(resultProjectDeleted, projectDeleted)
 
 	start = time.Now()
 	// при сбое ClickHouse повторяется только запись в него: счётчики в Postgres уже прибавлены
@@ -156,8 +162,8 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 	}
 	metricBatchDuration.WithLabelValues(stageCh).Observe(time.Since(start).Seconds())
 
-	metricEventTotal.WithLabelValues(resultStored).Add(float64(len(full)))
-	metricEventTotal.WithLabelValues(resultCountedOnly).Add(float64(len(all) - len(full)))
+	s.countEvents(resultStored, full)
+	s.countEvents(resultCountedOnly, countedOnly)
 
 	oldest := lo.MinBy(batch, func(a, b *queueModel.Event) bool { return a.ReceivedAt.Before(b.ReceivedAt) })
 	metricLag.Set(time.Since(oldest.ReceivedAt).Seconds())
@@ -165,11 +171,19 @@ func (s *Service) processBatch(ctx context.Context, batch []*queueModel.Event) b
 	return true
 }
 
+// countEvents прибавляет события к счётчику исхода по проектам
+func (s *Service) countEvents(result string, events []*eventModel.Event) {
+	byProject := lo.CountValuesBy(events, func(ev *eventModel.Event) string { return s.projectLabel.Label(ev.ProjectId) })
+	for project, n := range byProject {
+		metricEventTotal.WithLabelValues(result, project).Add(float64(n))
+	}
+}
+
 func (s *Service) normalizeBatch(batch []*queueModel.Event) []*eventModel.Event {
 	events := make([]*eventModel.Event, 0, len(batch))
 	for _, item := range batch {
 		if item.ProjectId == 0 {
-			metricEventTotal.WithLabelValues(resultBadMessage).Inc()
+			metricEventTotal.WithLabelValues(resultBadMessage, s.projectLabel.Label(item.ProjectId)).Inc()
 			slog.Warn("processor: message without project_id", "event_id", item.EventId)
 			continue
 		}
@@ -182,7 +196,7 @@ func (s *Service) normalizeBatch(batch []*queueModel.Event) []*eventModel.Event 
 			Payload:    item.Payload,
 		})
 		if err != nil {
-			metricEventTotal.WithLabelValues(resultBadMessage).Inc()
+			metricEventTotal.WithLabelValues(resultBadMessage, s.projectLabel.Label(item.ProjectId)).Inc()
 			slog.Warn("processor: bad event", "error", err, "event_id", item.EventId, "project_id", item.ProjectId)
 			continue
 		}

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	"github.com/rendau/zorko/internal/errs"
@@ -31,23 +32,38 @@ func New(uc *usecase.Usecase, maxBodyBytes, maxEventBytes int64) *Handler {
 func (h *Handler) Router() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /api/{project_id}/envelope", h.envelope)
-	mux.HandleFunc("POST /api/{project_id}/envelope/{$}", h.envelope)
-	mux.HandleFunc("POST /api/{project_id}/store", h.store)
-	mux.HandleFunc("POST /api/{project_id}/store/{$}", h.store)
+	mux.HandleFunc("POST /api/{project_id}/envelope", h.measure(h.envelope))
+	mux.HandleFunc("POST /api/{project_id}/envelope/{$}", h.measure(h.envelope))
+	mux.HandleFunc("POST /api/{project_id}/store", h.measure(h.store))
+	mux.HandleFunc("POST /api/{project_id}/store/{$}", h.measure(h.store))
 
 	return corsMiddleware(mux)
 }
 
-func (h *Handler) envelope(w http.ResponseWriter, r *http.Request) {
-	projectId, body, ok := h.readRequest(w, r)
+// measure — метка проекта на все метрики запроса и полное время ответа SDK (с чтением тела)
+func (h *Handler) measure(next func(w http.ResponseWriter, r *http.Request, project string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// номер, который не разбирается, — 0: такого проекта нет, метка "unknown"
+		projectId, _ := strconv.ParseInt(r.PathValue("project_id"), 10, 64)
+		project := h.usecase.ProjectLabel(projectId)
+
+		next(w, r, project)
+
+		metricRequestDuration.WithLabelValues(project).Observe(time.Since(start).Seconds())
+	}
+}
+
+func (h *Handler) envelope(w http.ResponseWriter, r *http.Request, project string) {
+	projectId, body, ok := h.readRequest(w, r, project)
 	if !ok {
 		return
 	}
 
 	env, err := parseEnvelope(body)
 	if err != nil {
-		h.reject(w, http.StatusBadRequest, resultBadRequest, err.Error())
+		h.reject(w, project, http.StatusBadRequest, resultBadRequest, err.Error())
 		return
 	}
 
@@ -59,11 +75,11 @@ func (h *Handler) envelope(w http.ResponseWriter, r *http.Request) {
 	events := make([]*eventModel.RawEvent, 0, 1)
 	for _, item := range env.Items {
 		if item.Type != "event" {
-			metricItemDropped.WithLabelValues(itemTypeLabel(item.Type)).Inc()
+			metricItemDropped.WithLabelValues(itemTypeLabel(item.Type), project).Inc()
 			continue
 		}
 		if int64(len(item.Payload)) > h.maxEventBytes {
-			metricItemDropped.WithLabelValues("event_too_large").Inc()
+			metricItemDropped.WithLabelValues(itemEventTooLarge, project).Inc()
 			continue
 		}
 		events = append(events, &eventModel.RawEvent{
@@ -77,23 +93,23 @@ func (h *Handler) envelope(w http.ResponseWriter, r *http.Request) {
 		responseId = events[0].EventId
 	}
 
-	h.ingest(w, r, projectId, publicKey, events, responseId)
+	h.ingest(w, r, project, projectId, publicKey, events, responseId)
 }
 
-func (h *Handler) store(w http.ResponseWriter, r *http.Request) {
-	projectId, body, ok := h.readRequest(w, r)
+func (h *Handler) store(w http.ResponseWriter, r *http.Request, project string) {
+	projectId, body, ok := h.readRequest(w, r, project)
 	if !ok {
 		return
 	}
 
 	if !json.Valid(body) {
-		h.reject(w, http.StatusBadRequest, resultBadRequest, "event is not valid json")
+		h.reject(w, project, http.StatusBadRequest, resultBadRequest, "event is not valid json")
 		return
 	}
 
 	events := make([]*eventModel.RawEvent, 0, 1)
 	if int64(len(body)) > h.maxEventBytes {
-		metricItemDropped.WithLabelValues("event_too_large").Inc()
+		metricItemDropped.WithLabelValues(itemEventTooLarge, project).Inc()
 	} else {
 		events = append(events, &eventModel.RawEvent{
 			EventId: eventId(eventIdFromPayload(body)),
@@ -106,30 +122,31 @@ func (h *Handler) store(w http.ResponseWriter, r *http.Request) {
 		responseId = events[0].EventId
 	}
 
-	h.ingest(w, r, projectId, publicKeyFromRequest(r), events, responseId)
+	h.ingest(w, r, project, projectId, publicKeyFromRequest(r), events, responseId)
 }
 
-func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request) (int64, []byte, bool) {
+func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request, project string) (int64, []byte, bool) {
 	projectId, err := strconv.ParseInt(r.PathValue("project_id"), 10, 64)
 	if err != nil || projectId <= 0 {
-		h.reject(w, http.StatusBadRequest, resultBadRequest, "bad project id")
+		h.reject(w, project, http.StatusBadRequest, resultBadRequest, "bad project id")
 		return 0, nil, false
 	}
 
 	body, err := readBody(r, h.maxBodyBytes)
 	switch {
 	case errors.Is(err, errBodyTooLarge):
-		h.reject(w, http.StatusRequestEntityTooLarge, resultTooLarge, "body too large")
+		h.reject(w, project, http.StatusRequestEntityTooLarge, resultTooLarge, "body too large")
 		return 0, nil, false
 	case err != nil:
-		h.reject(w, http.StatusBadRequest, resultBadRequest, err.Error())
+		h.reject(w, project, http.StatusBadRequest, resultBadRequest, err.Error())
 		return 0, nil, false
 	}
 
 	return projectId, body, true
 }
 
-func (h *Handler) ingest(w http.ResponseWriter, r *http.Request, projectId int64, publicKey string, events []*eventModel.RawEvent, responseId string) {
+func (h *Handler) ingest(w http.ResponseWriter, r *http.Request, project string, projectId int64, publicKey string,
+	events []*eventModel.RawEvent, responseId string) {
 	// запрос SDK не должен обрываться вместе с соединением клиента посреди записи в очередь
 	ctx := context.WithoutCancel(r.Context())
 
@@ -145,31 +162,31 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request, projectId int64
 		seconds := strconv.Itoa(max(int(rateErr.RetryAfter.Seconds()), 1))
 		w.Header().Set("Retry-After", seconds)
 		w.Header().Set("X-Sentry-Rate-Limits", seconds+"::project")
-		h.reject(w, http.StatusTooManyRequests, resultRateLimited, "rate limited")
+		h.reject(w, project, http.StatusTooManyRequests, resultRateLimited, "rate limited")
 		return
 	}
 
 	switch {
 	case errors.Is(err, errs.IngestKeyInvalid):
-		h.reject(w, http.StatusForbidden, resultForbidden, "invalid project key")
+		h.reject(w, project, http.StatusForbidden, resultForbidden, "invalid project key")
 		return
 	case errors.Is(err, errs.IngestOriginDenied):
-		h.reject(w, http.StatusForbidden, resultForbidden, "origin is not allowed")
+		h.reject(w, project, http.StatusForbidden, resultForbidden, "origin is not allowed")
 		return
 	case err != nil:
 		slog.Error("ingest: usecase.Ingest", "error", err, "project_id", projectId)
-		h.reject(w, http.StatusServiceUnavailable, resultUnavailable, "temporarily unavailable")
+		h.reject(w, project, http.StatusServiceUnavailable, resultUnavailable, "temporarily unavailable")
 		return
 	}
 
-	metricRequestTotal.WithLabelValues(resultAccepted).Inc()
-	metricEventAccepted.Add(float64(len(events)))
+	metricRequestTotal.WithLabelValues(resultAccepted, project).Inc()
+	metricEventAccepted.WithLabelValues(project).Add(float64(len(events)))
 
 	writeJson(w, http.StatusOK, map[string]string{"id": responseId})
 }
 
-func (h *Handler) reject(w http.ResponseWriter, status int, result, detail string) {
-	metricRequestTotal.WithLabelValues(result).Inc()
+func (h *Handler) reject(w http.ResponseWriter, project string, status int, result, detail string) {
+	metricRequestTotal.WithLabelValues(result, project).Inc()
 	writeJson(w, status, map[string]string{"detail": detail})
 }
 

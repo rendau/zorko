@@ -21,17 +21,24 @@ var metricProduceDuration = metrics.Factory.NewHistogram(prometheus.HistogramOpt
 })
 
 type Usecase struct {
-	keyCache    KeyCacheI
-	rateLimiter RateLimiterI
-	queue       QueueI
+	keyCache     KeyCacheI
+	rateLimiter  RateLimiterI
+	queue        QueueI
+	projectLabel ProjectLabelI
 }
 
-func New(keyCache KeyCacheI, rateLimiter RateLimiterI, queue QueueI) *Usecase {
+func New(keyCache KeyCacheI, rateLimiter RateLimiterI, queue QueueI, projectLabel ProjectLabelI) *Usecase {
 	return &Usecase{
-		keyCache:    keyCache,
-		rateLimiter: rateLimiter,
-		queue:       queue,
+		keyCache:     keyCache,
+		rateLimiter:  rateLimiter,
+		queue:        queue,
+		projectLabel: projectLabel,
 	}
+}
+
+// ProjectLabel — имя проекта для меток метрик приёма; несуществующий проект — "unknown"
+func (u *Usecase) ProjectLabel(projectId int64) string {
+	return u.projectLabel.Label(projectId)
 }
 
 // Ingest проверяет ключ, сайт и предел и кладёт события в очередь.

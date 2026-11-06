@@ -12,5 +12,7 @@ type Queue interface {
 	PublishEvents(ctx context.Context, events []*queueModel.Event) error
 	PollEvents(ctx context.Context, max int) ([]*queueModel.Event, error)
 	CommitPolled(ctx context.Context) error
+	Start(ctx context.Context)
+	Wait()
 	Close()
 }

@@ -13,6 +13,9 @@ import (
 	"testing"
 
 	"github.com/andybalholm/brotli"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -49,6 +52,15 @@ func (m *queueMock) PublishEvents(_ context.Context, events []*queueModel.Event)
 	return nil
 }
 
+type projectLabelMock map[int64]string
+
+func (m projectLabelMock) Label(projectId int64) string {
+	if label, ok := m[projectId]; ok {
+		return label
+	}
+	return "unknown"
+}
+
 type testEnv struct {
 	router http.Handler
 	queue  *queueMock
@@ -60,7 +72,7 @@ func newTestEnv(maxBody, maxEvent int64) *testEnv {
 		testKey: {Id: 1, ProjectId: 1, PublicKey: testKey, Active: true},
 	}}
 	queue := &queueMock{}
-	uc := usecase.New(keys, ratelimitService.New(), queue)
+	uc := usecase.New(keys, ratelimitService.New(), queue, projectLabelMock{1: "mechta"})
 	return &testEnv{router: New(uc, maxBody, maxEvent).Router(), queue: queue, keys: keys}
 }
 
@@ -316,6 +328,46 @@ func TestStore(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Len(t, env.queue.events, 1)
 	assert.Equal(t, "aaaaaaaabbbbccccddddeeeeeeeeeeee", env.queue.events[0].EventId, "id приводится к формату Sentry")
+}
+
+func metricValue(t *testing.T, m prometheus.Metric) float64 {
+	t.Helper()
+	var out dto.Metric
+	require.NoError(t, m.Write(&out))
+	if out.Histogram != nil {
+		return float64(out.Histogram.GetSampleCount())
+	}
+	return out.GetCounter().GetValue()
+}
+
+func TestMetricsProjectLabel(t *testing.T) {
+	env := newTestEnv(1<<20, 1<<20)
+	store := func(path string) int {
+		r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"message":"hi"}`))
+		r.Header.Set("X-Sentry-Auth", "Sentry sentry_key="+testKey)
+		return env.do(t, r).Code
+	}
+
+	accepted := metricRequestTotal.WithLabelValues(resultAccepted, "mechta")
+	events := metricEventAccepted.WithLabelValues("mechta")
+	forbiddenUnknown := metricRequestTotal.WithLabelValues(resultForbidden, "unknown")
+	badUnknown := metricRequestTotal.WithLabelValues(resultBadRequest, "unknown")
+	durationMechta := metricRequestDuration.WithLabelValues("mechta").(prometheus.Metric)
+	durationUnknown := metricRequestDuration.WithLabelValues("unknown").(prometheus.Metric)
+
+	before := lo.Map([]prometheus.Metric{accepted, events, forbiddenUnknown, badUnknown, durationMechta, durationUnknown},
+		func(m prometheus.Metric, _ int) float64 { return metricValue(t, m) })
+
+	require.Equal(t, http.StatusOK, store("/api/1/store/"))
+	require.Equal(t, http.StatusForbidden, store("/api/999/store/"), "чужой номер проекта")
+	require.Equal(t, http.StatusBadRequest, store("/api/abc/store/"))
+
+	assert.Equal(t, before[0]+1, metricValue(t, accepted))
+	assert.Equal(t, before[1]+1, metricValue(t, events))
+	assert.Equal(t, before[2]+1, metricValue(t, forbiddenUnknown), "номер из запроса не становится меткой")
+	assert.Equal(t, before[3]+1, metricValue(t, badUnknown))
+	assert.Equal(t, before[4]+1, metricValue(t, durationMechta))
+	assert.Equal(t, before[5]+2, metricValue(t, durationUnknown))
 }
 
 func TestCorsPreflight(t *testing.T) {

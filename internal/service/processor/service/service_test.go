@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -101,7 +102,7 @@ const typeErrorPayload = `{"exception":{"values":[{"type":"TypeError","value":"x
 func run(t *testing.T, q *queueFake, issues *issueFake, events *eventFake) {
 	t.Helper()
 	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
-		q, normalizeService.New(), nil, groupingService.New(), issues, events)
+		q, normalizeService.New(), nil, groupingService.New(), issues, events, projectLabelMock{})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -170,7 +171,7 @@ func TestShutdownDuringOutageAbandonsBatch(t *testing.T) {
 	events := &eventFake{alwaysErr: true}
 
 	s := New(Config{BatchSize: 500, StorePerMinute: 100, RetryMin: time.Millisecond, RetryMax: 5 * time.Millisecond, StageTimeout: time.Second},
-		q, normalizeService.New(), nil, groupingService.New(), issues, events)
+		q, normalizeService.New(), nil, groupingService.New(), issues, events, projectLabelMock{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.Start(ctx)
@@ -200,3 +201,7 @@ func TestHangingDatabaseIsRetried(t *testing.T) {
 	assert.Len(t, events.all, 1)
 	assert.Equal(t, 1, q.commits)
 }
+
+type projectLabelMock struct{}
+
+func (projectLabelMock) Label(projectId int64) string { return "p" + strconv.FormatInt(projectId, 10) }

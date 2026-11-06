@@ -33,3 +33,7 @@ type issueServiceI interface {
 type eventServiceI interface {
 	Store(ctx context.Context, all []*eventModel.Event, full []*eventModel.Event) error
 }
+
+type projectLabelI interface {
+	Label(projectId int64) string
+}
