@@ -1,6 +1,6 @@
 # Handoff
 
-**Сейчас:** Brainstorming `replay` → **к:** пользователю (просмотр спеки), затем CTO + PM (фаза 1)
+**Сейчас:** Planning Complete `replay` → **к:** SDE (R1–R10, `decisions/engineering-manager/replay.md`)
 
 - Спека: `specs/2026-11-06-replay-design.md`. Протокол сверен с `@sentry/replay` 11.11.0
   (пара `replay_event` + `replay_recording`, zlib, `replay_type` buffer/session, остановка записи
