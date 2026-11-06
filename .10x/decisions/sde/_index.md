@@ -7,3 +7,4 @@
 - [error-ingest](error-ingest.md)
 - [issue-ui](issue-ui.md)
 - [sourcemaps](sourcemaps.md) — шаг 3: что построено, отступления, долг
+- [replay](replay.md) — запись сессий

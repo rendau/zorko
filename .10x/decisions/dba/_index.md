@@ -9,3 +9,4 @@
 - [error-ingest](error-ingest.md)
 - [issue-ui](issue-ui.md)
 - [sourcemaps](sourcemaps.md) — шаг 3: таблицы карт, токенов, релизов
+- [replay](replay.md) — запись сессий

@@ -1,6 +1,6 @@
 # ADR-012: Сегменты записи — сразу в S3 при приёме, описания — через отдельную тему Redpanda
 
-**Status:** Accepted
+**Status:** Accepted (ключ S3 уточнён ADR-016)
 **Date:** 2026-11-06
 **Feature:** replay
 **Author:** 10x-Team (Architect + Staff Engineer)
