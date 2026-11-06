@@ -4,6 +4,7 @@ import (
 	"github.com/samber/lo"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/rendau/zorko/internal/config"
 	domainModel "github.com/rendau/zorko/internal/domain/project/model"
 	proto "github.com/rendau/zorko/pkg/proto/zorko_v1"
 )
@@ -28,6 +29,11 @@ func EncodeProjectMain(v *domainModel.Main, _ int) *proto.ProjectMain {
 		SiteFetchHeaderName:     v.SiteFetchHeaderName,
 		SiteFetchHeaderValueSet: v.SiteFetchHeaderValue != "",
 		SiteFetchIntervalMin:    v.SiteFetchIntervalMin,
+
+		ReplayMode:        v.ReplayMode,
+		ReplaySessionRate: v.ReplaySessionRate,
+		ReplayHourLimit:   v.ReplayHourLimit,
+		ReplayAvailable:   config.Conf.S3Endpoint != "",
 	}
 }
 
@@ -59,6 +65,9 @@ func DecodeProjectUpdateReq(v *proto.ProjectUpdateReq) *domainModel.Edit {
 		SiteFetchEnabled:     v.SiteFetchEnabled,
 		SiteFetchHeaderName:  v.SiteFetchHeaderName,
 		SiteFetchIntervalMin: v.SiteFetchIntervalMin,
+		ReplayMode:           v.ReplayMode,
+		ReplaySessionRate:    v.ReplaySessionRate,
+		ReplayHourLimit:      v.ReplayHourLimit,
 	}
 	if hosts := v.GetSiteFetchHost(); hosts != nil {
 		result.SiteFetchHost = new(lo.Ternary(hosts.GetValues() == nil, []string{}, hosts.GetValues()))

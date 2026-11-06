@@ -12,6 +12,7 @@ import (
 	"github.com/samber/lo"
 
 	projectModel "github.com/rendau/zorko/internal/domain/project/model"
+	"github.com/rendau/zorko/internal/service/projectlabel"
 )
 
 // LabelUnknown — проект не найден (нет такого или создан после последней перечитки)
@@ -23,6 +24,8 @@ type Service struct {
 
 	// project_id → метка; карта целиком заменяется при перечитке
 	labels atomic.Pointer[map[int64]string]
+	// project_id → настройки записи сессий; заменяется вместе с метками
+	replay atomic.Pointer[map[int64]projectlabel.ReplaySettings]
 
 	wg sync.WaitGroup
 }
@@ -33,6 +36,7 @@ func New(projectService projectServiceI, refreshInterval time.Duration) *Service
 		refreshInterval: refreshInterval,
 	}
 	s.labels.Store(new(map[int64]string{}))
+	s.replay.Store(new(map[int64]projectlabel.ReplaySettings{}))
 	return s
 }
 
@@ -44,6 +48,14 @@ func (s *Service) Label(projectId int64) string {
 	return LabelUnknown
 }
 
+// Replay — настройки записи сессий; неизвестный проект — запись выключена
+func (s *Service) Replay(projectId int64) projectlabel.ReplaySettings {
+	if v, ok := (*s.replay.Load())[projectId]; ok {
+		return v
+	}
+	return projectlabel.ReplaySettings{Mode: projectModel.ReplayModeOff}
+}
+
 // Refresh перечитывает все проекты
 func (s *Service) Refresh(ctx context.Context) error {
 	items, _, err := s.projectService.List(ctx, &projectModel.ListReq{})
@@ -52,6 +64,9 @@ func (s *Service) Refresh(ctx context.Context) error {
 	}
 
 	s.labels.Store(new(buildLabels(items)))
+	s.replay.Store(new(lo.SliceToMap(items, func(v *projectModel.Main) (int64, projectlabel.ReplaySettings) {
+		return v.Id, projectlabel.ReplaySettings{Mode: v.ReplayMode, HourLimit: v.ReplayHourLimit}
+	})))
 
 	return nil
 }

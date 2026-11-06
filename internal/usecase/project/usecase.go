@@ -14,13 +14,14 @@ import (
 )
 
 type Usecase struct {
-	svc        ServiceI
-	sessionSvc SessionServiceI
-	accessSvc  AccessServiceI
+	svc             ServiceI
+	sessionSvc      SessionServiceI
+	accessSvc       AccessServiceI
+	replayAvailable bool // настроен S3: запись сессий можно включить
 }
 
-func New(svc ServiceI, sessionSvc SessionServiceI, accessSvc AccessServiceI) *Usecase {
-	return &Usecase{svc: svc, sessionSvc: sessionSvc, accessSvc: accessSvc}
+func New(svc ServiceI, sessionSvc SessionServiceI, accessSvc AccessServiceI, replayAvailable bool) *Usecase {
+	return &Usecase{svc: svc, sessionSvc: sessionSvc, accessSvc: accessSvc, replayAvailable: replayAvailable}
 }
 
 func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
@@ -30,7 +31,32 @@ func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
 	if err := util.ValidateSlug(obj.Slug, forCreate); err != nil {
 		return err
 	}
+	if err := u.validateReplay(obj); err != nil {
+		return err
+	}
 	return validateSiteFetch(obj)
+}
+
+// validateReplay — режим из списка, доля 0..1, предел 1..1 000 000; без S3 запись не включить
+func (u *Usecase) validateReplay(obj *model.Edit) error {
+	if obj.ReplayMode != nil {
+		switch *obj.ReplayMode {
+		case model.ReplayModeOff:
+		case model.ReplayModeError, model.ReplayModeSession:
+			if !u.replayAvailable {
+				return errs.ReplayDisabled
+			}
+		default:
+			return errs.ErrFull{Err: errs.InvalidRequest, Desc: "replay_mode: off, error or session", Fields: map[string]string{"replay_mode": "invalid"}}
+		}
+	}
+	if obj.ReplaySessionRate != nil && (*obj.ReplaySessionRate < 0 || *obj.ReplaySessionRate > 1) {
+		return errs.ErrFull{Err: errs.InvalidRequest, Desc: "replay_session_rate: from 0 to 1", Fields: map[string]string{"replay_session_rate": "invalid"}}
+	}
+	if obj.ReplayHourLimit != nil && (*obj.ReplayHourLimit < 1 || *obj.ReplayHourLimit > 1_000_000) {
+		return errs.ErrFull{Err: errs.InvalidRequest, Desc: "replay_hour_limit: from 1 to 1000000", Fields: map[string]string{"replay_hour_limit": "invalid"}}
+	}
+	return nil
 }
 
 var headerNameRe = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)

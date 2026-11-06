@@ -42,6 +42,10 @@ const (
 	ChunkInvalid       = Err("chunk_invalid")
 	BundleInvalid      = Err("bundle_invalid")
 	ReleaseNotFound    = Err("release_not_found")
+
+	// запись сессий
+	ReplayDisabled = Err("replay_disabled") // S3 не настроен: запись не включить
+	ReplayNotFound = Err("replay_not_found")
 )
 
 type ErrFull struct {

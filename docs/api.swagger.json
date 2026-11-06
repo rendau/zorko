@@ -2579,6 +2579,24 @@
           "type": "integer",
           "format": "int32",
           "title": "как часто проверять адрес заново, минут"
+        },
+        "replay_mode": {
+          "type": "string",
+          "title": "запись сессий: off | error | session"
+        },
+        "replay_session_rate": {
+          "type": "number",
+          "format": "float",
+          "title": "доля всех сессий 0..1 для примера подключения (replaysSessionSampleRate): решает SDK на сайте"
+        },
+        "replay_hour_limit": {
+          "type": "integer",
+          "format": "int32",
+          "title": "новых записей в час на копию приёма"
+        },
+        "replay_available": {
+          "type": "boolean",
+          "title": "запись сессий доступна (настроен S3)"
         }
       }
     },
@@ -2611,6 +2629,17 @@
           "type": "boolean"
         },
         "site_fetch_interval_min": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "replay_mode": {
+          "type": "string"
+        },
+        "replay_session_rate": {
+          "type": "number",
+          "format": "float"
+        },
+        "replay_hour_limit": {
           "type": "integer",
           "format": "int32"
         }

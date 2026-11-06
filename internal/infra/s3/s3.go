@@ -1,4 +1,4 @@
-// Package s3 — тонкая обёртка над minio-go: файлы карт исходников и куски загрузки (ADR-009)
+// Package s3 — тонкая обёртка над minio-go: файлы карт исходников, куски загрузки (ADR-009), сегменты записей (ADR-012)
 package s3
 
 import (
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -131,6 +132,50 @@ func (c *Client) ListOlder(ctx context.Context, prefix string, before time.Time)
 		}
 	}
 	return result, nil
+}
+
+// ListPrefixes — «папки» первого уровня под prefix (prefix оканчивается на "/"): "replay/20261106/"
+func (c *Client) ListPrefixes(ctx context.Context, prefix string) ([]string, error) {
+	result := make([]string, 0)
+	for obj := range c.mc.ListObjects(ctx, c.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: false}) {
+		if obj.Err != nil {
+			return nil, fmt.Errorf("ListObjects %s: %w", prefix, obj.Err)
+		}
+		if strings.HasSuffix(obj.Key, "/") {
+			result = append(result, obj.Key)
+		}
+	}
+	return result, nil
+}
+
+// DeletePrefix удаляет все объекты под prefix; возвращает, сколько удалено
+func (c *Client) DeletePrefix(ctx context.Context, prefix string) (int, error) {
+	keys := make([]string, 0)
+	for obj := range c.mc.ListObjects(ctx, c.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
+		if obj.Err != nil {
+			return 0, fmt.Errorf("ListObjects %s: %w", prefix, obj.Err)
+		}
+		keys = append(keys, obj.Key)
+	}
+
+	objects := make(chan minio.ObjectInfo, len(keys))
+	for _, key := range keys {
+		objects <- minio.ObjectInfo{Key: key}
+	}
+	close(objects)
+
+	var firstErr error
+	failed := 0
+	for res := range c.mc.RemoveObjectsWithResult(ctx, c.bucket, objects, minio.RemoveObjectsOptions{}) {
+		if res.Err != nil && !isNotFound(res.Err) {
+			failed++
+			if firstErr == nil {
+				firstErr = fmt.Errorf("RemoveObjects %s: %w", res.ObjectName, res.Err)
+			}
+		}
+	}
+
+	return len(keys) - failed, firstErr
 }
 
 func isNotFound(err error) bool {

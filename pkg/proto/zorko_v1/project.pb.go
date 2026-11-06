@@ -44,8 +44,16 @@ type ProjectMain struct {
 	SiteFetchHeaderValueSet bool `protobuf:"varint,11,opt,name=site_fetch_header_value_set,json=siteFetchHeaderValueSet,proto3" json:"site_fetch_header_value_set,omitempty"`
 	// как часто проверять адрес заново, минут
 	SiteFetchIntervalMin int32 `protobuf:"varint,12,opt,name=site_fetch_interval_min,json=siteFetchIntervalMin,proto3" json:"site_fetch_interval_min,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// запись сессий: off | error | session
+	ReplayMode string `protobuf:"bytes,13,opt,name=replay_mode,json=replayMode,proto3" json:"replay_mode,omitempty"`
+	// доля всех сессий 0..1 для примера подключения (replaysSessionSampleRate): решает SDK на сайте
+	ReplaySessionRate float32 `protobuf:"fixed32,14,opt,name=replay_session_rate,json=replaySessionRate,proto3" json:"replay_session_rate,omitempty"`
+	// новых записей в час на копию приёма
+	ReplayHourLimit int32 `protobuf:"varint,15,opt,name=replay_hour_limit,json=replayHourLimit,proto3" json:"replay_hour_limit,omitempty"`
+	// запись сессий доступна (настроен S3)
+	ReplayAvailable bool `protobuf:"varint,16,opt,name=replay_available,json=replayAvailable,proto3" json:"replay_available,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ProjectMain) Reset() {
@@ -160,6 +168,34 @@ func (x *ProjectMain) GetSiteFetchIntervalMin() int32 {
 		return x.SiteFetchIntervalMin
 	}
 	return 0
+}
+
+func (x *ProjectMain) GetReplayMode() string {
+	if x != nil {
+		return x.ReplayMode
+	}
+	return ""
+}
+
+func (x *ProjectMain) GetReplaySessionRate() float32 {
+	if x != nil {
+		return x.ReplaySessionRate
+	}
+	return 0
+}
+
+func (x *ProjectMain) GetReplayHourLimit() int32 {
+	if x != nil {
+		return x.ReplayHourLimit
+	}
+	return 0
+}
+
+func (x *ProjectMain) GetReplayAvailable() bool {
+	if x != nil {
+		return x.ReplayAvailable
+	}
+	return false
 }
 
 // ProjectHostList — обёртка списка хостов: не передан — список не меняется
@@ -493,9 +529,12 @@ type ProjectUpdateReq struct {
 	SiteFetchHost       *ProjectHostList       `protobuf:"bytes,6,opt,name=site_fetch_host,json=siteFetchHost,proto3" json:"site_fetch_host,omitempty"`
 	SiteFetchHeaderName *string                `protobuf:"bytes,7,opt,name=site_fetch_header_name,json=siteFetchHeaderName,proto3,oneof" json:"site_fetch_header_name,omitempty"`
 	// пусто или не передано — значение не меняется; стереть — site_fetch_header_clear
-	SiteFetchHeaderValue *string `protobuf:"bytes,8,opt,name=site_fetch_header_value,json=siteFetchHeaderValue,proto3,oneof" json:"site_fetch_header_value,omitempty"`
-	SiteFetchHeaderClear bool    `protobuf:"varint,9,opt,name=site_fetch_header_clear,json=siteFetchHeaderClear,proto3" json:"site_fetch_header_clear,omitempty"`
-	SiteFetchIntervalMin *int32  `protobuf:"varint,10,opt,name=site_fetch_interval_min,json=siteFetchIntervalMin,proto3,oneof" json:"site_fetch_interval_min,omitempty"`
+	SiteFetchHeaderValue *string  `protobuf:"bytes,8,opt,name=site_fetch_header_value,json=siteFetchHeaderValue,proto3,oneof" json:"site_fetch_header_value,omitempty"`
+	SiteFetchHeaderClear bool     `protobuf:"varint,9,opt,name=site_fetch_header_clear,json=siteFetchHeaderClear,proto3" json:"site_fetch_header_clear,omitempty"`
+	SiteFetchIntervalMin *int32   `protobuf:"varint,10,opt,name=site_fetch_interval_min,json=siteFetchIntervalMin,proto3,oneof" json:"site_fetch_interval_min,omitempty"`
+	ReplayMode           *string  `protobuf:"bytes,11,opt,name=replay_mode,json=replayMode,proto3,oneof" json:"replay_mode,omitempty"`
+	ReplaySessionRate    *float32 `protobuf:"fixed32,12,opt,name=replay_session_rate,json=replaySessionRate,proto3,oneof" json:"replay_session_rate,omitempty"`
+	ReplayHourLimit      *int32   `protobuf:"varint,13,opt,name=replay_hour_limit,json=replayHourLimit,proto3,oneof" json:"replay_hour_limit,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -600,11 +639,32 @@ func (x *ProjectUpdateReq) GetSiteFetchIntervalMin() int32 {
 	return 0
 }
 
+func (x *ProjectUpdateReq) GetReplayMode() string {
+	if x != nil && x.ReplayMode != nil {
+		return *x.ReplayMode
+	}
+	return ""
+}
+
+func (x *ProjectUpdateReq) GetReplaySessionRate() float32 {
+	if x != nil && x.ReplaySessionRate != nil {
+		return *x.ReplaySessionRate
+	}
+	return 0
+}
+
+func (x *ProjectUpdateReq) GetReplayHourLimit() int32 {
+	if x != nil && x.ReplayHourLimit != nil {
+		return *x.ReplayHourLimit
+	}
+	return 0
+}
+
 var File_zorko_v1_project_proto protoreflect.FileDescriptor
 
 const file_zorko_v1_project_proto_rawDesc = "" +
 	"\n" +
-	"\x16zorko_v1/project.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\xf0\x03\n" +
+	"\x16zorko_v1/project.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\x98\x05\n" +
 	"\vProjectMain\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x129\n" +
 	"\n" +
@@ -620,7 +680,12 @@ const file_zorko_v1_project_proto_rawDesc = "" +
 	"\x16site_fetch_header_name\x18\n" +
 	" \x01(\tR\x13siteFetchHeaderName\x12<\n" +
 	"\x1bsite_fetch_header_value_set\x18\v \x01(\bR\x17siteFetchHeaderValueSet\x125\n" +
-	"\x17site_fetch_interval_min\x18\f \x01(\x05R\x14siteFetchIntervalMin\")\n" +
+	"\x17site_fetch_interval_min\x18\f \x01(\x05R\x14siteFetchIntervalMin\x12\x1f\n" +
+	"\vreplay_mode\x18\r \x01(\tR\n" +
+	"replayMode\x12.\n" +
+	"\x13replay_session_rate\x18\x0e \x01(\x02R\x11replaySessionRate\x12*\n" +
+	"\x11replay_hour_limit\x18\x0f \x01(\x05R\x0freplayHourLimit\x12)\n" +
+	"\x10replay_available\x18\x10 \x01(\bR\x0freplayAvailable\")\n" +
 	"\x0fProjectHostList\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"\xa2\x01\n" +
 	"\x0eProjectListReq\x125\n" +
@@ -646,7 +711,7 @@ const file_zorko_v1_project_proto_rawDesc = "" +
 	"\x05_nameB\v\n" +
 	"\t_platform\"\"\n" +
 	"\x10ProjectCreateRep\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\xdd\x04\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xa7\x06\n" +
 	"\x10ProjectUpdateReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
 	"\x04slug\x18\x02 \x01(\tH\x00R\x04slug\x88\x01\x01\x12\x17\n" +
@@ -658,14 +723,21 @@ const file_zorko_v1_project_proto_rawDesc = "" +
 	"\x17site_fetch_header_value\x18\b \x01(\tH\x05R\x14siteFetchHeaderValue\x88\x01\x01\x125\n" +
 	"\x17site_fetch_header_clear\x18\t \x01(\bR\x14siteFetchHeaderClear\x12:\n" +
 	"\x17site_fetch_interval_min\x18\n" +
-	" \x01(\x05H\x06R\x14siteFetchIntervalMin\x88\x01\x01B\a\n" +
+	" \x01(\x05H\x06R\x14siteFetchIntervalMin\x88\x01\x01\x12$\n" +
+	"\vreplay_mode\x18\v \x01(\tH\aR\n" +
+	"replayMode\x88\x01\x01\x123\n" +
+	"\x13replay_session_rate\x18\f \x01(\x02H\bR\x11replaySessionRate\x88\x01\x01\x12/\n" +
+	"\x11replay_hour_limit\x18\r \x01(\x05H\tR\x0freplayHourLimit\x88\x01\x01B\a\n" +
 	"\x05_slugB\a\n" +
 	"\x05_nameB\v\n" +
 	"\t_platformB\x15\n" +
 	"\x13_site_fetch_enabledB\x19\n" +
 	"\x17_site_fetch_header_nameB\x1a\n" +
 	"\x18_site_fetch_header_valueB\x1a\n" +
-	"\x18_site_fetch_interval_min2\xad\x03\n" +
+	"\x18_site_fetch_interval_minB\x0e\n" +
+	"\f_replay_modeB\x16\n" +
+	"\x14_replay_session_rateB\x14\n" +
+	"\x12_replay_hour_limit2\xad\x03\n" +
 	"\x0eProjectService\x12L\n" +
 	"\x04List\x12\x18.zorko_v1.ProjectListReq\x1a\x18.zorko_v1.ProjectListRep\"\x10\x82\xd3\xe4\x93\x02\n" +
 	"\x12\b/project\x12L\n" +

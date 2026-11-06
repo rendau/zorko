@@ -22,6 +22,10 @@ type Upsert struct {
 	SiteFetchHeaderName  *string
 	SiteFetchHeaderValue *string
 	SiteFetchIntervalMin *int32
+
+	ReplayMode        *string
+	ReplaySessionRate *float32
+	ReplayHourLimit   *int32
 }
 
 func (m *Upsert) CreateColumnMap() map[string]any {
@@ -59,6 +63,15 @@ func (m *Upsert) CreateColumnMap() map[string]any {
 	if m.SiteFetchIntervalMin != nil {
 		result["site_fetch_interval_min"] = *m.SiteFetchIntervalMin
 	}
+	if m.ReplayMode != nil {
+		result["replay_mode"] = *m.ReplayMode
+	}
+	if m.ReplaySessionRate != nil {
+		result["replay_session_rate"] = *m.ReplaySessionRate
+	}
+	if m.ReplayHourLimit != nil {
+		result["replay_hour_limit"] = *m.ReplayHourLimit
+	}
 	return result
 }
 
@@ -91,5 +104,9 @@ func DecodeUpsert(v *domainModel.Edit) *Upsert {
 		SiteFetchHeaderName:  v.SiteFetchHeaderName,
 		SiteFetchHeaderValue: v.SiteFetchHeaderValue,
 		SiteFetchIntervalMin: v.SiteFetchIntervalMin,
+
+		ReplayMode:        v.ReplayMode,
+		ReplaySessionRate: v.ReplaySessionRate,
+		ReplayHourLimit:   v.ReplayHourLimit,
 	}
 }

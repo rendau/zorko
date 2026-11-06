@@ -20,6 +20,10 @@ type Select struct {
 	SiteFetchHeaderName  string
 	SiteFetchHeaderValue string
 	SiteFetchIntervalMin int32
+
+	ReplayMode        string
+	ReplaySessionRate float32
+	ReplayHourLimit   int32
 }
 
 func (m *Select) ListColumnMap() map[string]any {
@@ -37,6 +41,10 @@ func (m *Select) ListColumnMap() map[string]any {
 		"site_fetch_header_name":  &m.SiteFetchHeaderName,
 		"site_fetch_header_value": &m.SiteFetchHeaderValue,
 		"site_fetch_interval_min": &m.SiteFetchIntervalMin,
+
+		"replay_mode":         &m.ReplayMode,
+		"replay_session_rate": &m.ReplaySessionRate,
+		"replay_hour_limit":   &m.ReplayHourLimit,
 	}
 }
 
@@ -65,5 +73,9 @@ func EncodeSelect(v *Select, _ int) *domainModel.Main {
 		SiteFetchHeaderName:  v.SiteFetchHeaderName,
 		SiteFetchHeaderValue: v.SiteFetchHeaderValue,
 		SiteFetchIntervalMin: v.SiteFetchIntervalMin,
+
+		ReplayMode:        v.ReplayMode,
+		ReplaySessionRate: v.ReplaySessionRate,
+		ReplayHourLimit:   v.ReplayHourLimit,
 	}
 }

@@ -176,7 +176,7 @@ func (a *App) Init() {
 	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute), projectService)
 	usrHandler := handlerGrpcP.NewUsr(usrUsecase)
 
-	projectUsecase := usecaseProjectP.New(projectService, sessionService, accessService)
+	projectUsecase := usecaseProjectP.New(projectService, sessionService, accessService, config.Conf.S3Endpoint != "")
 	projectHandler := handlerGrpcP.NewProject(projectUsecase)
 
 	// org

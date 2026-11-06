@@ -24,9 +24,11 @@ var Conf = struct {
 	PgDsn string `env:"PG_DSN"`
 	ChDsn string `env:"CH_DSN"`
 
-	KafkaBrokers       []string `env:"KAFKA_BROKERS" envSeparator:","`
-	KafkaTopicEvents   string   `env:"KAFKA_TOPIC_EVENTS" envDefault:"zorko.events"`
-	KafkaConsumerGroup string   `env:"KAFKA_CONSUMER_GROUP" envDefault:"zorko-processor"`
+	KafkaBrokers     []string `env:"KAFKA_BROKERS" envSeparator:","`
+	KafkaTopicEvents string   `env:"KAFKA_TOPIC_EVENTS" envDefault:"zorko.events"`
+	// описания сегментов записей сессий (ADR-012); группа обработки — KafkaConsumerGroup + "-replay"
+	KafkaTopicReplays  string `env:"KAFKA_TOPIC_REPLAYS" envDefault:"zorko.replays"`
+	KafkaConsumerGroup string `env:"KAFKA_CONSUMER_GROUP" envDefault:"zorko-processor"`
 	// тема создаётся при старте, если её нет: разделов — потолок числа копий обработки
 	KafkaTopicPartitions int32         `env:"KAFKA_TOPIC_PARTITIONS" envDefault:"12"`
 	KafkaTopicRetention  time.Duration `env:"KAFKA_TOPIC_RETENTION" envDefault:"24h"`
@@ -64,6 +66,12 @@ var Conf = struct {
 	AssembleTmpDir string `env:"ASSEMBLE_TMP_DIR"`
 	// одновременных запросов к сайтам за картами на копию обработчика
 	SiteFetchConcurrency int `env:"SITE_FETCH_CONCURRENCY" envDefault:"4"`
+
+	// запись сессий (ADR-012..015); без S3_ENDPOINT — выключена
+	// тело одного сегмента (сжатое), байт
+	ReplayMaxSegmentBytes int64 `env:"REPLAY_MAX_SEGMENT_BYTES" envDefault:"10485760"`
+	// сколько хранить записи в S3; TTL таблиц ClickHouse — 30 дней в миграции, менять вместе
+	ReplayRetention time.Duration `env:"REPLAY_RETENTION" envDefault:"720h"`
 }{}
 
 func init() {

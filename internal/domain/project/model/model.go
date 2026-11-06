@@ -22,7 +22,19 @@ type Main struct {
 	SiteFetchHeaderName  string
 	SiteFetchHeaderValue string // секрет: наружу (в ответы ручек) не отдаётся
 	SiteFetchIntervalMin int32
+
+	// запись сессий (ADR-013)
+	ReplayMode        string  // ReplayModeOff | ReplayModeError | ReplayModeSession
+	ReplaySessionRate float32 // доля сессий 0..1 — только для примера подключения: решает SDK
+	ReplayHourLimit   int32   // новых записей в час на копию приёма
 }
+
+// режимы приёма записей сессий
+const (
+	ReplayModeOff     = "off"
+	ReplayModeError   = "error"   // только записи, начатые из-за ошибки (replay_type = buffer)
+	ReplayModeSession = "session" // и записи доли всех сессий (replay_type = session)
+)
 
 // Edit — мутация (partial create/update)
 type Edit struct {
@@ -38,6 +50,10 @@ type Edit struct {
 	SiteFetchHeaderName  *string
 	SiteFetchHeaderValue *string
 	SiteFetchIntervalMin *int32
+
+	ReplayMode        *string
+	ReplaySessionRate *float32
+	ReplayHourLimit   *int32
 }
 
 // ListReq — параметры выборки

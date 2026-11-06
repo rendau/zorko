@@ -63,6 +63,14 @@ message ProjectMain {
   bool site_fetch_header_value_set = 11;
   // как часто проверять адрес заново, минут
   int32 site_fetch_interval_min = 12;
+  // запись сессий: off | error | session
+  string replay_mode = 13;
+  // доля всех сессий 0..1 для примера подключения (replaysSessionSampleRate): решает SDK на сайте
+  float replay_session_rate = 14;
+  // новых записей в час на копию приёма
+  int32 replay_hour_limit = 15;
+  // запись сессий доступна (настроен S3)
+  bool replay_available = 16;
 }
 
 // ProjectHostList — обёртка списка хостов: не передан — список не меняется
@@ -117,4 +125,7 @@ message ProjectUpdateReq {
   optional string site_fetch_header_value = 8;
   bool site_fetch_header_clear = 9;
   optional int32 site_fetch_interval_min = 10;
+  optional string replay_mode = 11;
+  optional float replay_session_rate = 12;
+  optional int32 replay_hour_limit = 13;
 }

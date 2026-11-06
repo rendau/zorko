@@ -53,3 +53,19 @@ func TestRefreshErrorKeepsOldLabels(t *testing.T) {
 	require.Error(t, s.Refresh(context.Background()))
 	assert.Equal(t, "mechta", s.Label(1))
 }
+
+func TestReplaySettings(t *testing.T) {
+	mock := &projectServiceMock{items: []*projectModel.Main{
+		{Id: 1, Slug: "seller", ReplayMode: projectModel.ReplayModeError, ReplayHourLimit: 500},
+		{Id: 2, Slug: "admin", ReplayMode: projectModel.ReplayModeOff, ReplayHourLimit: 1000},
+	}}
+	s := New(mock, time.Minute)
+
+	assert.Equal(t, projectModel.ReplayModeOff, s.Replay(1).Mode, "до загрузки запись выключена")
+
+	require.NoError(t, s.Refresh(context.Background()))
+	assert.Equal(t, projectModel.ReplayModeError, s.Replay(1).Mode)
+	assert.EqualValues(t, 500, s.Replay(1).HourLimit)
+	assert.Equal(t, projectModel.ReplayModeOff, s.Replay(2).Mode)
+	assert.Equal(t, projectModel.ReplayModeOff, s.Replay(999).Mode, "неизвестный проект")
+}
