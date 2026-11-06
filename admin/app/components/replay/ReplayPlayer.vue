@@ -47,8 +47,8 @@ function mount() {
     if (typeof e.payload === 'number')
       emit('time', e.payload)
   })
-  if (props.startAt)
-    player.goto(Math.max(props.startAt, 0), false)
+  // без перехода (и на 0 тоже) проигрыватель не отрисовывает первый кадр до «играть»
+  player.goto(Math.max(props.startAt ?? 0, 0), false)
 }
 
 watch(width, (w) => {
@@ -86,5 +86,9 @@ defineExpose({
 }
 .replay-player :deep(.rr-controller) {
   background: var(--ui-bg);
+}
+/* время на шкале по умолчанию тёмное — на тёмной теме не видно */
+.replay-player :deep(.rr-timeline__time) {
+  color: var(--ui-text-muted);
 }
 </style>

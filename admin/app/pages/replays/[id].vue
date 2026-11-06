@@ -58,7 +58,7 @@ async function load() {
     })
     const all = parts.flat().sort((a, b) => a.timestamp - b.timestamp)
     items.value = replayItems(all)
-    events.value = all
+    events.value = playable(all)
   }
   catch (e) {
     if ((e as Error).name === 'AbortError')
@@ -78,7 +78,7 @@ onMounted(() => {
 })
 
 const start = computed(() => events.value[0]?.timestamp ?? 0)
-const playable = computed(() => events.value.some(e => e.type === RRWEB_FULL_SNAPSHOT) && events.value.length > 1)
+const canPlay = computed(() => events.value.some(e => e.type === RRWEB_FULL_SNAPSHOT) && events.value.length > 1)
 const startAt = computed(() => (Number.isFinite(at.value) && start.value ? Math.max(at.value - start.value - 5000, 0) : 0))
 const total = computed(() => (rep.value ? rep.value.summary.max_segment + 1 : 0))
 
@@ -140,9 +140,9 @@ const user = computed(() => summary.value ? (summary.value.user_email || summary
         </div>
 
         <UAlert v-if="!loading && missing" color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('replay.missing', { n: missing, total })" />
-        <UAlert v-if="!loading && events.length && !playable" color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('replay.noSnapshot')" />
+        <UAlert v-if="!loading && events.length && !canPlay" color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('replay.noSnapshot')" />
 
-        <div v-if="!loading && playable" class="grid gap-4 xl:grid-cols-[1fr_24rem]">
+        <div v-if="!loading && canPlay" class="grid gap-4 xl:grid-cols-[1fr_24rem]">
           <ReplayPlayer ref="player" :events="events" :start-at="startAt" @time="v => current = v" />
           <ReplayItems :items="items" :errors="rep?.errors ?? []" :start="start" :current="current" @seek="seek" />
         </div>

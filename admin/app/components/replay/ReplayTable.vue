@@ -14,14 +14,15 @@ function user(r: ReplaySummary): string {
   return r.user_email || r.user_id || r.user_ip
 }
 
+// в карточке проблемы колонка уже — без проекта и с узкими полями
 const cols = computed(() => props.showProject
   ? 'grid-cols-[9rem_1fr_9rem_9rem_5rem_4rem]'
-  : 'grid-cols-[9rem_1fr_9rem_5rem_4rem]')
+  : 'grid-cols-[7.5rem_1fr_8rem_3.5rem_3.5rem]')
 </script>
 
 <template>
   <div class="overflow-x-auto rounded-lg border border-default">
-    <div class="min-w-[760px] divide-y divide-default">
+    <div class="divide-y divide-default" :class="showProject ? 'min-w-[760px]' : 'min-w-[560px]'">
       <div class="grid items-center gap-4 bg-elevated/50 px-4 py-2 text-xs font-medium text-muted" :class="cols">
         <span>{{ t('replay.column.time') }}</span>
         <span>{{ t('replay.column.page') }}</span>

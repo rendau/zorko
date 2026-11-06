@@ -50,15 +50,15 @@ const rateChanged = computed(() => Math.abs((Number(ratePercent.value) || 0) / 1
       <UFormField :label="t('settings.replay.modeLabel')">
         <URadioGroup v-model="mode" :items="modeItems" :disabled="!isAdmin || !available" />
       </UFormField>
-      <div class="grid max-w-2xl gap-4 sm:grid-cols-2">
-        <UFormField v-if="mode === 'session'" :label="t('settings.replay.rate')" :hint="t('settings.replay.rateHint')">
+      <div class="flex flex-wrap gap-6">
+        <UFormField v-if="mode === 'session'" :label="t('settings.replay.rate')" :description="t('settings.replay.rateHint')">
           <UInput v-model.number="ratePercent" type="number" min="0" max="100" step="0.1" class="w-32" :disabled="!isAdmin">
             <template #trailing>
               <span class="text-xs text-muted">%</span>
             </template>
           </UInput>
         </UFormField>
-        <UFormField v-if="mode !== 'off'" :label="t('settings.replay.hourLimit')" :hint="t('settings.replay.hourLimitHint')">
+        <UFormField v-if="mode !== 'off'" :label="t('settings.replay.hourLimit')" :description="t('settings.replay.hourLimitHint')">
           <UInput v-model.number="hourLimit" type="number" min="1" max="1000000" class="w-32" :disabled="!isAdmin" />
         </UFormField>
       </div>

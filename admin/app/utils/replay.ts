@@ -37,7 +37,15 @@ export async function decodeSegment(buf: ArrayBuffer): Promise<RrwebEvent[]> {
   const parsed: unknown = JSON.parse(text)
   if (!Array.isArray(parsed))
     return []
-  return parsed.filter((e): e is RrwebEvent => isObject(e) && typeof e.type === 'number' && typeof e.timestamp === 'number')
+  return parsed
+    .filter((e): e is RrwebEvent => isObject(e) && typeof e.type === 'number' && typeof e.timestamp === 'number')
+    .map(normalizeTimestamp)
+}
+
+// SDK Sentry пишет часть своих событий (запросы, замеры памяти, фокус) со временем в секундах,
+// остальные — в миллисекундах; без приведения они встают в начало записи на десятилетия раньше
+function normalizeTimestamp(e: RrwebEvent): RrwebEvent {
+  return e.timestamp < 1e11 ? { ...e, timestamp: Math.round(e.timestamp * 1000) } : e
 }
 
 export type ReplayItemKind = 'console' | 'network' | 'click' | 'navigation' | 'input' | 'other'
@@ -113,6 +121,14 @@ export function replayItems(events: RrwebEvent[]): ReplayItem[] {
       result.push(item)
   }
   return result.sort((a, b) => a.at - b.at)
+}
+
+// playable — события для проигрывателя: с первого Meta (размер окна, за ним снимок страницы).
+// SDK кладёт перед ним свои события (загрузка страницы, скрипты) — с ними проигрыватель стартует
+// раньше снимка и показывает пустую рамку, пока не нажмут «играть»
+export function playable(events: RrwebEvent[]): RrwebEvent[] {
+  const i = events.findIndex(e => e.type === RRWEB_META)
+  return i > 0 ? events.slice(i) : events
 }
 
 // viewport — размер окна посетителя из первого события Meta (для пропорций проигрывателя)

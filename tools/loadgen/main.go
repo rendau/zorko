@@ -5,12 +5,16 @@
 // -distinct — сколько разных ошибок (отпечатков) в потоке; события одной ошибки одинаковые,
 // как при плохом релизе.
 //
+// -replay — вместо ошибок сегменты записей сессий (~20 КБ zlib, по 10 сегментов на запись, вид buffer):
+// нагрузка на приём записей (S3 + очередь zorko.replays). У проекта должен быть включён режим записи.
+//
 // -js — сжатый файл сборки (после sentry-cli sourcemaps inject): кадры указывают на настоящие места в нём,
 // событие несёт метку файла (debug_meta) — нагрузка на перевод стека по картам.
 package main
 
 import (
 	"bytes"
+	"compress/zlib"
 	"crypto/rand"
 	"encoding/hex"
 	"flag"
@@ -76,7 +80,11 @@ func main() {
 	origin := flag.String("origin", "", "заголовок Origin (проверка разрешённых сайтов)")
 	jsPath := flag.String("js", "", "сжатый JS с меткой //# debugId= — кадры по его местам и debug_meta")
 	needles := flag.String("needles", "throw RangeError,t(this.rules.find,e.toFixed", "места в -js через запятую (старые кадры первыми)")
+	replay := flag.Bool("replay", false, "слать сегменты записей сессий вместо ошибок")
 	flag.Parse()
+	if *replay {
+		replayBody = makeReplayBody()
+	}
 
 	if *jsPath != "" {
 		if err := loadMinified(*jsPath, strings.Split(*needles, ",")); err != nil {
@@ -116,7 +124,12 @@ func main() {
 					return
 				}
 
-				body := envelope(i % *distinct)
+				var body []byte
+				if *replay {
+					body = replayEnvelope(i)
+				} else {
+					body = envelope(i % *distinct)
+				}
 				req, _ := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
 				req.Header.Set("Content-Type", "application/x-sentry-envelope")
 				req.Header.Set("X-Sentry-Auth", "Sentry sentry_version=7, sentry_key="+key+", sentry_client=zorko-loadgen/1")
@@ -207,3 +220,50 @@ func envelope(variant int) []byte {
 	return []byte(`{"event_id":"` + eventId + `","sent_at":"` + time.Now().UTC().Format(time.RFC3339) + `"}` + "\n" +
 		`{"type":"event"}` + "\n" + event + "\n")
 }
+
+// replayBody — тело сегмента: события rrweb, сжатые zlib, около 20 КБ (как первый сегмент обычной страницы)
+var replayBody []byte
+
+func makeReplayBody() []byte {
+	var events strings.Builder
+	events.WriteString(`[{"type":4,"data":{"href":"https://shop.mechta.kz/cart","width":1440,"height":900},"timestamp":1}`)
+	noise := make([]byte, 12<<10)
+	_, _ = rand.Read(noise)
+	for i := 0; i < 40; i++ {
+		events.WriteString(`,{"type":3,"data":{"source":0,"texts":[],"attributes":[],"adds":[{"node":{"textContent":"` +
+			hex.EncodeToString(noise[i*256:(i+1)*256]) + `"}}]},"timestamp":` + strconv.Itoa(1000+i) + `}`)
+	}
+	events.WriteString("]")
+	var buf bytes.Buffer
+	zw := zlib.NewWriter(&buf)
+	_, _ = zw.Write([]byte(events.String()))
+	_ = zw.Close()
+	return buf.Bytes()
+}
+
+// replayEnvelope — сегмент i%10 записи i/10 (номер записи — от запуска и i)
+func replayEnvelope(i int) []byte {
+	replayId := fmt.Sprintf("%08x", i/10) + runId[8:]
+	segment := i % 10
+	now := float64(time.Now().UnixMilli()) / 1000
+	event := fmt.Sprintf(`{"type":"replay_event","replay_id":%q,"segment_id":%d,"replay_type":"buffer",`+
+		`"replay_start_timestamp":%.3f,"timestamp":%.3f,"urls":["https://shop.mechta.kz/cart"],"error_ids":[],`+
+		`"platform":"javascript","environment":"production","release":"shop@1.4.2",`+
+		`"request":{"headers":{"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36"}},`+
+		`"sdk":{"name":"sentry.javascript.vue","version":"11.11.0"}}`, replayId, segment, now-60, now)
+	recording := append([]byte(`{"segment_id":`+strconv.Itoa(segment)+"}\n"), replayBody...)
+
+	var b bytes.Buffer
+	b.WriteString(`{"event_id":"` + replayId + `"}` + "\n")
+	b.WriteString(`{"type":"replay_event"}` + "\n" + event + "\n")
+	b.WriteString(`{"type":"replay_recording","length":` + strconv.Itoa(len(recording)) + "}\n")
+	b.Write(recording)
+	return b.Bytes()
+}
+
+// runId — уникальная часть номеров записей этого запуска
+var runId = func() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}()

@@ -3,17 +3,20 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { deflateSync } from 'node:zlib'
 
-import { decodeSegment, formatOffset, mapLimit, replayItems, viewport } from '../app/utils/replay.ts'
+import { decodeSegment, formatOffset, mapLimit, playable, replayItems, viewport } from '../app/utils/replay.ts'
 
-// события так, как пишет @sentry/replay 11.x: rrweb + служебные события SDK (type 5)
+// события так, как пишет @sentry/replay 11.x: rrweb + служебные события SDK (type 5);
+// время событий — мс, время внутри payload — секунды
+const T = 1_793_969_300_000
+const sec = ms => (T + ms) / 1000
 const events = [
-  { type: 4, timestamp: 1_000, data: { href: 'https://seller.mechta.kz/orders', width: 1440, height: 900 } },
-  { type: 2, timestamp: 1_001, data: { node: {}, initialOffset: { top: 0, left: 0 } } },
-  { type: 5, timestamp: 2_000, data: { tag: 'breadcrumb', payload: { timestamp: 2.0, type: 'default', category: 'ui.click', message: 'button.save', data: { node: { tagName: 'button', textContent: 'Сохранить' } } } } },
-  { type: 5, timestamp: 3_000, data: { tag: 'breadcrumb', payload: { timestamp: 3.0, type: 'default', category: 'console', level: 'error', message: 'Order failed', data: { arguments: ['Order failed', { id: 42 }], logger: 'console' } } } },
-  { type: 5, timestamp: 2_500, data: { tag: 'performanceSpan', payload: { op: 'resource.fetch', description: 'https://seller.mechta.kz/api/order', startTimestamp: 2.5, endTimestamp: 3.25, data: { method: 'POST', statusCode: 500 } } } },
-  { type: 5, timestamp: 2_600, data: { tag: 'performanceSpan', payload: { op: 'resource.img', description: 'logo.png', startTimestamp: 2.6, endTimestamp: 2.7 } } },
-  { type: 5, timestamp: 4_000, data: { tag: 'breadcrumb', payload: { timestamp: 4.0, category: 'navigation', data: { from: '/orders', to: '/orders/42' } } } },
+  { type: 4, timestamp: T + 1_000, data: { href: 'https://seller.mechta.kz/orders', width: 1440, height: 900 } },
+  { type: 2, timestamp: T + 1_001, data: { node: {}, initialOffset: { top: 0, left: 0 } } },
+  { type: 5, timestamp: T + 2_000, data: { tag: 'breadcrumb', payload: { timestamp: sec(2_000), type: 'default', category: 'ui.click', message: 'button.save', data: { node: { tagName: 'button', textContent: 'Сохранить' } } } } },
+  { type: 5, timestamp: T + 3_000, data: { tag: 'breadcrumb', payload: { timestamp: sec(3_000), type: 'default', category: 'console', level: 'error', message: 'Order failed', data: { arguments: ['Order failed', { id: 42 }], logger: 'console' } } } },
+  { type: 5, timestamp: T + 2_500, data: { tag: 'performanceSpan', payload: { op: 'resource.fetch', description: 'https://seller.mechta.kz/api/order', startTimestamp: sec(2_500), endTimestamp: sec(3_250), data: { method: 'POST', statusCode: 500 } } } },
+  { type: 5, timestamp: T + 2_600, data: { tag: 'performanceSpan', payload: { op: 'resource.img', description: 'logo.png', startTimestamp: sec(2_600), endTimestamp: sec(2_700) } } },
+  { type: 5, timestamp: T + 4_000, data: { tag: 'breadcrumb', payload: { timestamp: sec(4_000), category: 'navigation', data: { from: '/orders', to: '/orders/42' } } } },
 ]
 
 test('сегмент zlib (как хранит сервер) и голый JSON', async () => {
@@ -23,6 +26,17 @@ test('сегмент zlib (как хранит сервер) и голый JSON'
 
   const raw = new TextEncoder().encode(JSON.stringify(events))
   assert.equal((await decodeSegment(raw.buffer)).length, events.length)
+})
+
+test('время в секундах (так SDK пишет запросы и замеры) приводится к миллисекундам', async () => {
+  const mixed = [
+    { type: 4, timestamp: 1_793_969_303_000, data: { width: 800, height: 600 } },
+    { type: 5, timestamp: 1_793_969_348.3985, data: { tag: 'performanceSpan', payload: { op: 'resource.fetch' } } },
+  ]
+  const body = deflateSync(Buffer.from(JSON.stringify(mixed)))
+  const out = await decodeSegment(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength))
+  assert.equal(out[0].timestamp, 1_793_969_303_000)
+  assert.equal(out[1].timestamp, 1_793_969_348_399)
 })
 
 test('вкладки: клики, консоль, запросы, переходы по времени', () => {
@@ -59,4 +73,14 @@ test('не больше limit одновременно, порядок сохр�
   })
   assert.deepEqual(out, [10, 20, 30, 40, 50, 60, 70])
   assert.ok(peak <= 3)
+})
+
+test('проигрыватель начинает с Meta: служебные события перед снимком отбрасываются', () => {
+  const ev = [
+    { type: 5, timestamp: T, data: { tag: 'performanceSpan' } },
+    { type: 4, timestamp: T + 124, data: {} },
+    { type: 2, timestamp: T + 128, data: {} },
+  ]
+  assert.deepEqual(playable(ev).map(e => e.type), [4, 2])
+  assert.equal(playable(events).length, events.length, 'Meta первым — без изменений')
 })
