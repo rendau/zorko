@@ -20,6 +20,18 @@ const viteReleaseEnv = `  // Версия сборки — задаётся в v
     ? 'development'
     : (import.meta.env.VITE_SENTRY_ENVIRONMENT || 'production'),`
 
+// Отметки сессий (браузерный SDK шлёт по одной на каждое открытие страницы) и отчёты SDK о себе
+// zorko принимает и выбрасывает — выключаем, чтобы на сайте с большим трафиком не гонять пустые запросы
+// i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
+function browserNoSessions(indent: string): string {
+  return [
+    '// Отметки сессий (по одной на каждое открытие страницы) и отчёты SDK о себе zorko',
+    '// не хранит — выключаем, иначе на каждый просмотр уходит лишний запрос',
+    'integrations: defaults => defaults.filter(i => i.name !== \'BrowserSession\'),',
+    'sendClientReports: false,',
+  ].map(line => indent + line).join('\n')
+}
+
 // i18n-data: код примера для разработчиков, комментарии в нём — как в проектах команды
 export function sdkSnippets(dsn: string): SdkSnippet[] {
   return [
@@ -33,6 +45,7 @@ Sentry.init({
   app,
   dsn: '${dsn}',
 ${viteReleaseEnv}
+${browserNoSessions('  ')}
 })`,
     },
     {
@@ -59,6 +72,7 @@ export default defineNuxtPlugin((nuxtApp) => {
     release: config.sentryRelease || undefined,
     // NODE_ENV на тесте и на бою одинаковый (production), поэтому окружение задаём явно
     environment: import.meta.dev ? 'development' : (config.sentryEnvironment || 'production'),
+${browserNoSessions('    ')}
   })
 
   // Ошибка в любом компоненте
@@ -93,6 +107,7 @@ export default defineNuxtPlugin((nuxtApp) => {
 Sentry.init({
   dsn: '${dsn}',
 ${viteReleaseEnv}
+${browserNoSessions('  ')}
 })`,
     },
     {
@@ -105,6 +120,7 @@ Sentry.init({
   dsn: '${dsn}',
   release: 'my-app@1.0.0',
   environment: 'production',
+${browserNoSessions('  ')}
 })`,
     },
     {
@@ -118,6 +134,9 @@ Future<void> main() async {
     (options) {
       options.dsn = '${dsn}';
       options.environment = 'production';
+      // Отметки сессий и отчёты SDK о себе zorko не хранит — выключаем лишние запросы
+      options.enableAutoSessionTracking = false;
+      options.sendClientReports = false;
     },
     appRunner: () => runApp(const MyApp()),
   );
@@ -132,6 +151,9 @@ Future<void> main() async {
 Sentry.init({
   dsn: '${dsn}',
   environment: 'production',
+  // Отметки сессий и отчёты SDK о себе zorko не хранит — выключаем лишние запросы
+  enableAutoSessionTracking: false,
+  sendClientReports: false,
 })
 
 export default Sentry.wrap(App)`,
