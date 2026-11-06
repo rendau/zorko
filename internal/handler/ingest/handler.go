@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/samber/lo"
+
 	eventModel "github.com/rendau/zorko/internal/domain/event/model"
 	"github.com/rendau/zorko/internal/errs"
 	usecase "github.com/rendau/zorko/internal/usecase/ingest"
@@ -179,7 +181,8 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request, project string,
 		return
 	}
 
-	metricRequestTotal.WithLabelValues(resultAccepted, project).Inc()
+	// запрос без единой ошибки (отметки сессий, отчёты SDK) — принят, но в проблемы ничего не попадает
+	metricRequestTotal.WithLabelValues(lo.Ternary(len(events) > 0, resultAccepted, resultNoEvents), project).Inc()
 	metricEventAccepted.WithLabelValues(project).Add(float64(len(events)))
 
 	writeJson(w, http.StatusOK, map[string]string{"id": responseId})

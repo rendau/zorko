@@ -30,7 +30,8 @@ var (
 )
 
 const (
-	resultAccepted    = "accepted"
+	resultAccepted    = "accepted"  // принят, в нём есть хотя бы одна ошибка
+	resultNoEvents    = "no_events" // принят, но ошибок в нём нет: служебное SDK (session, client_report…) или ошибка больше предела
 	resultRateLimited = "rate_limited"
 	resultForbidden   = "forbidden"
 	resultTooLarge    = "too_large"

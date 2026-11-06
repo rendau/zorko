@@ -370,6 +370,24 @@ func TestMetricsProjectLabel(t *testing.T) {
 	assert.Equal(t, before[5]+2, metricValue(t, durationUnknown))
 }
 
+func TestMetricsNoEvents(t *testing.T) {
+	env := newTestEnv(1<<20, 1<<20)
+	accepted := metricRequestTotal.WithLabelValues(resultAccepted, "mechta")
+	noEvents := metricRequestTotal.WithLabelValues(resultNoEvents, "mechta")
+	acceptedBefore, noEventsBefore := metricValue(t, accepted), metricValue(t, noEvents)
+
+	// отметка сессии без ошибок: SDK шлёт такие при открытии страниц
+	body := "{\"sent_at\":\"2026-11-06T10:00:00Z\"}\n{\"type\":\"session\"}\n{\"sid\":\"abc\",\"status\":\"ok\"}\n"
+	r := envelopeReq("/api/1/envelope/", []byte(body))
+	r.Header.Set("X-Sentry-Auth", "Sentry sentry_key="+testKey)
+	w := env.do(t, r)
+
+	require.Equal(t, http.StatusOK, w.Code, "служебное принимается, чтобы SDK не повторял")
+	assert.Empty(t, env.queue.events)
+	assert.Equal(t, noEventsBefore+1, metricValue(t, noEvents))
+	assert.Equal(t, acceptedBefore, metricValue(t, accepted), "accepted — только запросы с ошибками")
+}
+
 func TestCorsPreflight(t *testing.T) {
 	env := newTestEnv(1<<20, 1<<20)
 	r := httptest.NewRequest(http.MethodOptions, "/api/1/envelope/", nil)
