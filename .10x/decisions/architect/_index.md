@@ -16,3 +16,4 @@
 - [error-ingest](error-ingest.md) — компоненты, потоки, отказы шага 1
 - [issue-ui](issue-ui.md) — шаг 2
 - [sourcemaps](sourcemaps.md) — шаг 3: карты исходников (ADR 008–011)
+- [replay](replay.md) — запись сессий (ADR 012–015)

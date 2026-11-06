@@ -1,12 +1,12 @@
 # Статус
 
-**Фаза:** Strategy Complete (`replay`); `sourcemaps` (шаг 3) — Verification Complete
+**Фаза:** Design Complete (`replay`); `sourcemaps` (шаг 3) — Verification Complete
 **Обновлено:** 2026-11-06
 
 ## replay (запись сессий, перед шагом 4 по решению пользователя 2026-11-06)
 - [x] спека `specs/2026-11-06-replay-design.md` одобрена (2026-11-06)
 - [x] стратегия
-- [ ] дизайн (ADR)
+- [x] дизайн (ADR 012–015)
 - [ ] план
 
 ## sourcemaps (шаг 3)
