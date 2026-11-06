@@ -142,11 +142,8 @@ func (u *Usecase) UpdateProfile(ctx context.Context, req *UpdateProfileReq) erro
 
 // List — админ: участнику список людей не нужен (свой профиль — GetProfile)
 func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main, int64, error) {
-	if !u.sessionSvc.CtxIsAuthorized(ctx) {
-		return nil, 0, errs.NotAuthorized
-	}
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return nil, 0, errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return nil, 0, err
 	}
 	if err := util.RequirePageSize(pars.ListParams, 0); err != nil {
 		return nil, 0, err
@@ -159,11 +156,8 @@ func (u *Usecase) List(ctx context.Context, pars *model.ListReq) ([]*model.Main,
 }
 
 func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
-	if !u.sessionSvc.CtxIsAuthorized(ctx) {
-		return nil, errs.NotAuthorized
-	}
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return nil, errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return nil, err
 	}
 	result, _, err := u.svc.Get(ctx, id, true)
 	if err != nil {
@@ -207,8 +201,8 @@ func (u *Usecase) Create(ctx context.Context, obj *model.Edit) (int64, error) {
 
 // Update — админ; себя нельзя отключить и лишить прав админа (иначе можно остаться без админов)
 func (u *Usecase) Update(ctx context.Context, id int64, obj *model.Edit) error {
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return err
 	}
 	if id == 0 {
 		return errs.IdRequired
@@ -230,8 +224,8 @@ func (u *Usecase) Update(ctx context.Context, id int64, obj *model.Edit) error {
 }
 
 func (u *Usecase) Delete(ctx context.Context, id int64) error {
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return err
 	}
 	if id == 0 {
 		return errs.IdRequired

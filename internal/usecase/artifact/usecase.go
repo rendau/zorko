@@ -15,7 +15,7 @@ const siteFetchLimit = 50
 
 type SessionServiceI interface {
 	CtxIsAuthorized(ctx context.Context) bool
-	CtxIsAdmin(ctx context.Context) bool
+	CtxRequireAdmin(ctx context.Context) error
 }
 
 type ServiceI interface {
@@ -94,8 +94,8 @@ func (u *Usecase) DeleteBundle(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errs.IdRequired
 	}
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return err
 	}
 	if err := u.svc.DeleteBundle(ctx, id); err != nil {
 		return fmt.Errorf("svc.DeleteBundle: %w", err)

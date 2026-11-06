@@ -24,8 +24,8 @@ func New(svc ServiceI, orgSvc OrgServiceI, sessionSvc SessionServiceI) *Usecase 
 }
 
 func (u *Usecase) List(ctx context.Context, orgId int64) ([]*model.Main, error) {
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return nil, errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return nil, err
 	}
 	if orgId == 0 {
 		return nil, errs.ErrFull{Err: errs.InvalidRequest, Desc: "org_id is required", Fields: map[string]string{"org_id": "required"}}
@@ -38,8 +38,8 @@ func (u *Usecase) List(ctx context.Context, orgId int64) ([]*model.Main, error) 
 }
 
 func (u *Usecase) Create(ctx context.Context, orgId int64, name string) (*model.Created, error) {
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return nil, errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return nil, err
 	}
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > nameMaxLen {
@@ -63,8 +63,8 @@ func (u *Usecase) Delete(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errs.IdRequired
 	}
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return err
 	}
 	if err := u.svc.Delete(ctx, id); err != nil {
 		return fmt.Errorf("svc.Delete: %w", err)

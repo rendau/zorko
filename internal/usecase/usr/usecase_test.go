@@ -220,6 +220,9 @@ func TestPermissions(t *testing.T) {
 	assert.ErrorIs(t, err, errs.NoPermission)
 	assert.ErrorIs(t, e.uc.Update(memberCtx, adminId, &model.Edit{Name: new("x")}), errs.NoPermission)
 	assert.ErrorIs(t, e.uc.Delete(memberCtx, adminId), errs.NoPermission)
+	// без входа (в том числе с истёкшим токеном) — 401, а не 403: по 401 интерфейс обновляет токен
+	assert.ErrorIs(t, e.uc.Update(context.Background(), memberId, &model.Edit{Name: new("x")}), errs.NotAuthorized)
+	assert.ErrorIs(t, e.uc.Delete(context.Background(), memberId), errs.NotAuthorized)
 
 	_, _, err = e.uc.List(context.Background(), &model.ListReq{})
 	assert.ErrorIs(t, err, errs.NotAuthorized)

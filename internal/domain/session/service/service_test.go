@@ -1,12 +1,16 @@
 package service
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	jwtv5 "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	sessionModel "github.com/rendau/zorko/internal/domain/session/model"
+	"github.com/rendau/zorko/internal/errs"
 )
 
 func TestAccessToken(t *testing.T) {
@@ -70,4 +74,15 @@ func TestExpiredAndForeignAlg(t *testing.T) {
 func TestEmptySecret(t *testing.T) {
 	_, err := New("").CreateToken(1, true)
 	assert.Error(t, err)
+}
+
+// Сначала вход, потом роль: истёкший токен даёт пустую сессию, и админ с ним должен получить
+// 401 (интерфейс обновит токен и повторит), а не 403 «нет прав»
+func TestCtxRequireAdmin(t *testing.T) {
+	s := New("test-secret")
+
+	assert.ErrorIs(t, s.CtxRequireAdmin(context.Background()), errs.NotAuthorized, "без сессии")
+	assert.ErrorIs(t, s.CtxRequireAdmin(s.WithContext(context.Background(), nil)), errs.NotAuthorized, "пустая сессия (истёкший токен)")
+	assert.ErrorIs(t, s.CtxRequireAdmin(s.WithContext(context.Background(), &sessionModel.Session{Id: 2})), errs.NoPermission, "участник")
+	assert.NoError(t, s.CtxRequireAdmin(s.WithContext(context.Background(), &sessionModel.Session{Id: 1, Admin: true})), "админ")
 }

@@ -81,8 +81,8 @@ func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
 }
 
 func (u *Usecase) Create(ctx context.Context, obj *model.Edit) (int64, error) {
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return 0, errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return 0, err
 	}
 	if err := u.validateEdit(obj, true); err != nil {
 		return 0, err
@@ -98,8 +98,8 @@ func (u *Usecase) Update(ctx context.Context, id int64, obj *model.Edit) error {
 	if id == 0 {
 		return errs.IdRequired
 	}
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return err
 	}
 	if err := u.validateEdit(obj, false); err != nil {
 		return err
@@ -114,8 +114,8 @@ func (u *Usecase) Delete(ctx context.Context, id int64) error {
 	if id == 0 {
 		return errs.IdRequired
 	}
-	if !u.sessionSvc.CtxIsAdmin(ctx) {
-		return errs.NoPermission
+	if err := u.sessionSvc.CtxRequireAdmin(ctx); err != nil {
+		return err
 	}
 	if err := u.svc.Delete(ctx, id); err != nil {
 		return fmt.Errorf("svc.Delete: %w", err)

@@ -58,8 +58,18 @@ func (s *Service) CtxIsAuthorized(ctx context.Context) bool {
 	return s.FromContext(ctx).IsAuthorized()
 }
 
-func (s *Service) CtxIsAdmin(ctx context.Context) bool {
-	return s.FromContext(ctx).IsAdmin()
+// CtxRequireAdmin — для действий только админа. Сначала вход, потом роль: без годного токена
+// (в том числе истёкшего) — NotAuthorized (401), по нему интерфейс обновляет токен и повторяет
+// запрос; NoPermission (403) — только вошедшему не админу.
+func (s *Service) CtxRequireAdmin(ctx context.Context) error {
+	session := s.FromContext(ctx)
+	if !session.IsAuthorized() {
+		return errs.NotAuthorized
+	}
+	if !session.IsAdmin() {
+		return errs.NoPermission
+	}
+	return nil
 }
 
 // CreateToken — access-токен на accessTokenTTL

@@ -10,7 +10,7 @@ import (
 
 type SessionServiceI interface {
 	FromContext(ctx context.Context) *sessionModel.Session
-	CtxIsAdmin(ctx context.Context) bool
+	CtxRequireAdmin(ctx context.Context) error
 }
 
 type ServiceI interface {
