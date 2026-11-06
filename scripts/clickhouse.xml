@@ -11,11 +11,43 @@
   3. Запас свободного места: ClickHouse не займёт последний 1 ГБ диска — вставки получат
      ошибку, события подождут в очереди Redpanda, база не упадёт на полном диске. Раньше
      срабатывает уборка самого zorko (CH_DISK_MAX_USED_PERCENT): удаляет самые старые дни.
+  4. Память под лимит пода 2 ГБ. Свой потолок ClickHouse берёт как 90 % лимита (1,8 ГБ),
+     а умолчания у него — под большой сервер: кэши по 5 ГБ и 16 фоновых слияний разом.
+     Обработчик пишет мелко (при малом потоке — 1–2 строки раз в пару секунд), каждая вставка —
+     новый кусок, и слияние куска `event` с полными данными событий занимает 130–230 МБ.
+     Несколько таких слияний сразу упирали сервер в потолок: вставки получали
+     «memory limit exceeded» (code 241) и ждали повтора. Поэтому:
+     - слияний одновременно не больше двух (background_pool_size × ratio = 2 × 1); пороги
+       свободных мест в пуле (merge_tree/number_of_free_entries_*) — под такой маленький пул,
+       иначе ClickHouse считал бы пул вечно занятым и не сливал большие куски;
+     - блок сжатия 256 КБ вместо 1 МБ (merge_tree/max_compress_block_size): память слияния
+       уходит в основном на буферы по каждой колонке, на стенде слияние `event` стало
+       вдвое легче (пик 190 → 95 МБ), данные на диске — на ~5 % больше;
+     - кэши ограничены сотнями МБ — у zorko данных мало, большие кэши ему не нужны.
+     Настройки merge_tree действуют и на уже созданные таблицы (после перезапуска).
 -->
 <clickhouse>
     <logger>
         <level>warning</level>
     </logger>
+
+    <background_pool_size>2</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
+    <merge_tree>
+        <number_of_free_entries_in_pool_to_lower_max_size_of_merge>0</number_of_free_entries_in_pool_to_lower_max_size_of_merge>
+        <number_of_free_entries_in_pool_to_execute_mutation>1</number_of_free_entries_in_pool_to_execute_mutation>
+        <number_of_free_entries_in_pool_to_execute_optimize_entire_partition>1</number_of_free_entries_in_pool_to_execute_optimize_entire_partition>
+        <max_compress_block_size>262144</max_compress_block_size>
+        <min_compress_block_size>65536</min_compress_block_size>
+    </merge_tree>
+
+    <mark_cache_size>268435456</mark_cache_size>
+    <index_mark_cache_size>67108864</index_mark_cache_size>
+    <primary_index_cache_size>134217728</primary_index_cache_size>
+    <uncompressed_cache_size>67108864</uncompressed_cache_size>
+    <query_condition_cache_size>33554432</query_condition_cache_size>
+    <compiled_expression_cache_size>33554432</compiled_expression_cache_size>
+    <vector_similarity_index_cache_size>16777216</vector_similarity_index_cache_size>
 
     <query_log>
         <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>

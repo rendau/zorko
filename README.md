@@ -132,6 +132,17 @@ ADR 012–016.
 
 Postgres хранит проблемы, проекты и метаданные карт — сотни МБ на годы, предел ему не нужен.
 
+**Память ClickHouse** (ADR-018). Лимит пода — 2 ГБ, свой потолок ClickHouse берёт как 90 % — 1,8 ГБ.
+Умолчания у него — под большой сервер, поэтому в тех же `clickhouse.xml`: не больше двух слияний
+разом, блок сжатия 256 КБ вместо 1 МБ (слияние `event` вдвое легче), кэши — сотни МБ. Признак
+нехватки — `processor: retry` с `memory limit exceeded` (code 241) в логе zorko; посмотреть, кто
+занимал память:
+
+```sql
+select event_time, table, formatReadableSize(peak_memory_usage) from system.part_log
+where event_date = today() and event_type = 'MergeParts' order by peak_memory_usage desc limit 10;
+```
+
 После первого выката настроек ClickHouse старые журналы остаются на диске: ClickHouse
 переименовывает таблицы со сменившимся сроком в `<имя>_0`, а выключенные не трогает. Посмотреть и
 удалить:
