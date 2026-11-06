@@ -494,6 +494,15 @@
       "withoutErrors": "Without errors",
       "anyType": "Any replays",
       "search": "Page address, user id or email"
+    },
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "back5": "Back 5 seconds",
+      "forward5": "Forward 5 seconds",
+      "seek": "Replay position",
+      "skipInactive": "Skip pauses",
+      "keys": "Drag the slider; red dots are errors. Space — play/pause, arrows — ±5 s (click the player first)."
     }
   }
 }

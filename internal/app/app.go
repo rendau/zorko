@@ -24,6 +24,9 @@ import (
 	domainArtifactRepoBlobP "github.com/rendau/zorko/internal/domain/artifact/repo/blob"
 	domainArtifactRepoDbP "github.com/rendau/zorko/internal/domain/artifact/repo/db"
 	domainArtifactServiceP "github.com/rendau/zorko/internal/domain/artifact/service"
+	domainChdiskRepoChP "github.com/rendau/zorko/internal/domain/chdisk/repo/ch"
+	domainChdiskRepoDbP "github.com/rendau/zorko/internal/domain/chdisk/repo/db"
+	domainChdiskServiceP "github.com/rendau/zorko/internal/domain/chdisk/service"
 	domainEventRepoChP "github.com/rendau/zorko/internal/domain/event/repo/ch"
 	domainEventServiceP "github.com/rendau/zorko/internal/domain/event/service"
 	domainIssueRepoDbP "github.com/rendau/zorko/internal/domain/issue/repo/db"
@@ -54,6 +57,7 @@ import (
 	serviceAccessServiceP "github.com/rendau/zorko/internal/service/access/service"
 	serviceArtifactgcServiceP "github.com/rendau/zorko/internal/service/artifactgc/service"
 	serviceAssembleServiceP "github.com/rendau/zorko/internal/service/assemble/service"
+	serviceChdiskgcServiceP "github.com/rendau/zorko/internal/service/chdiskgc/service"
 	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
 	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
 	serviceLoginlimitServiceP "github.com/rendau/zorko/internal/service/loginlimit/service"
@@ -99,6 +103,7 @@ type App struct {
 	artifactGc   *serviceArtifactgcServiceP.Service
 	replayProc   *serviceReplayprocServiceP.Service
 	replayGc     *serviceReplaygcServiceP.Service
+	chDiskGc     *serviceChdiskgcServiceP.Service
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
@@ -237,14 +242,15 @@ func (a *App) Init() {
 		}
 
 		a.queue, err = serviceQueueServiceP.New(serviceQueueServiceP.Config{
-			Brokers:         config.Conf.KafkaBrokers,
-			Topic:           config.Conf.KafkaTopicEvents,
-			ConsumerGroup:   config.Conf.KafkaConsumerGroup,
-			TopicPartitions: config.Conf.KafkaTopicPartitions,
-			TopicRetention:  config.Conf.KafkaTopicRetention,
-			WithProducer:    config.Conf.IngestEnabled,
-			WithConsumer:    config.Conf.ProcessorEnabled,
-			FetchMaxWait:    config.Conf.ProcessorBatchWait,
+			Brokers:             config.Conf.KafkaBrokers,
+			Topic:               config.Conf.KafkaTopicEvents,
+			ConsumerGroup:       config.Conf.KafkaConsumerGroup,
+			TopicPartitions:     config.Conf.KafkaTopicPartitions,
+			TopicRetention:      config.Conf.KafkaTopicRetention,
+			TopicRetentionBytes: config.Conf.KafkaTopicRetentionBytes,
+			WithProducer:        config.Conf.IngestEnabled,
+			WithConsumer:        config.Conf.ProcessorEnabled,
+			FetchMaxWait:        config.Conf.ProcessorBatchWait,
 		})
 		errCheck(err, "queue init")
 
@@ -257,14 +263,15 @@ func (a *App) Init() {
 	// replay queue: своя тема и группа, чтобы поток записей не задерживал ошибки (ADR-012)
 	if s3Client != nil && (config.Conf.IngestEnabled || config.Conf.ProcessorEnabled) {
 		a.replayQueue, err = serviceQueueServiceP.New(serviceQueueServiceP.Config{
-			Brokers:         config.Conf.KafkaBrokers,
-			Topic:           config.Conf.KafkaTopicReplays,
-			ConsumerGroup:   config.Conf.KafkaConsumerGroup + "-replay",
-			TopicPartitions: config.Conf.KafkaTopicPartitions,
-			TopicRetention:  config.Conf.KafkaTopicRetention,
-			WithProducer:    config.Conf.IngestEnabled,
-			WithConsumer:    config.Conf.ProcessorEnabled,
-			FetchMaxWait:    config.Conf.ProcessorBatchWait,
+			Brokers:             config.Conf.KafkaBrokers,
+			Topic:               config.Conf.KafkaTopicReplays,
+			ConsumerGroup:       config.Conf.KafkaConsumerGroup + "-replay",
+			TopicPartitions:     config.Conf.KafkaTopicPartitions,
+			TopicRetention:      config.Conf.KafkaTopicRetention,
+			TopicRetentionBytes: config.Conf.KafkaTopicRetentionBytes,
+			WithProducer:        config.Conf.IngestEnabled,
+			WithConsumer:        config.Conf.ProcessorEnabled,
+			FetchMaxWait:        config.Conf.ProcessorBatchWait,
 		})
 		errCheck(err, "replay queue init")
 
@@ -359,6 +366,16 @@ func (a *App) Init() {
 			a.replayGc = serviceReplaygcServiceP.New(serviceReplaygcServiceP.Config{
 				Retention: config.Conf.ReplayRetention,
 			}, replayService)
+		}
+
+		// предохранитель диска ClickHouse (ADR-017): одна проверка на все копии
+		if config.Conf.ChDiskMaxUsedPercent > 0 {
+			chdiskService := domainChdiskServiceP.New(domainChdiskRepoChP.New(a.chConn), domainChdiskRepoDbP.New(a.pgpool),
+				domainChdiskServiceP.Tables)
+			a.chDiskGc = serviceChdiskgcServiceP.New(serviceChdiskgcServiceP.Config{
+				MaxUsedPercent: config.Conf.ChDiskMaxUsedPercent,
+				Every:          config.Conf.ChDiskCheckInterval,
+			}, chdiskService)
 		}
 
 		a.processor = serviceProcessorServiceP.New(serviceProcessorServiceP.Config{
@@ -536,6 +553,11 @@ func (a *App) Start() {
 		a.replayGc.Start(a.ctx)
 	}
 
+	// ch disk gc
+	if a.chDiskGc != nil {
+		a.chDiskGc.Start(a.ctx)
+	}
+
 	// ingest http server
 	if a.ingestHttpServer != nil {
 		go func() {
@@ -692,6 +714,11 @@ func (a *App) WaitJobs() {
 	// replay gc
 	if a.replayGc != nil {
 		a.replayGc.Wait()
+	}
+
+	// ch disk gc
+	if a.chDiskGc != nil {
+		a.chDiskGc.Wait()
 	}
 }
 

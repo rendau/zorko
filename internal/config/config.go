@@ -32,6 +32,10 @@ var Conf = struct {
 	// тема создаётся при старте, если её нет: разделов — потолок числа копий обработки
 	KafkaTopicPartitions int32         `env:"KAFKA_TOPIC_PARTITIONS" envDefault:"12"`
 	KafkaTopicRetention  time.Duration `env:"KAFKA_TOPIC_RETENTION" envDefault:"24h"`
+	// предел объёма каждой темы на раздел, байт (retention.bytes; 0 — без предела): при наплыве
+	// старые сообщения удаляются раньше срока, но диск брокера не переполняется.
+	// 512 МБ × 12 разделов × 2 темы = 12 ГБ (+ по сегменту на раздел) — под диск 20 ГБ
+	KafkaTopicRetentionBytes int64 `env:"KAFKA_TOPIC_RETENTION_BYTES" envDefault:"536870912"`
 
 	IngestEnabled       bool   `env:"INGEST_ENABLED" envDefault:"true"`
 	IngestPort          string `env:"INGEST_PORT" envDefault:"8000"`
@@ -72,6 +76,11 @@ var Conf = struct {
 	ReplayMaxSegmentBytes int64 `env:"REPLAY_MAX_SEGMENT_BYTES" envDefault:"10485760"`
 	// сколько хранить записи в S3; TTL таблиц ClickHouse — 30 дней в миграции, менять вместе
 	ReplayRetention time.Duration `env:"REPLAY_RETENTION" envDefault:"720h"`
+
+	// предохранитель диска ClickHouse (ADR-017): занято больше процента — удаляются самые
+	// старые дни данных zorko, сегодняшний не трогается; 0 — выключено
+	ChDiskMaxUsedPercent int           `env:"CH_DISK_MAX_USED_PERCENT" envDefault:"80"`
+	ChDiskCheckInterval  time.Duration `env:"CH_DISK_CHECK_INTERVAL" envDefault:"10m"`
 }{}
 
 func init() {

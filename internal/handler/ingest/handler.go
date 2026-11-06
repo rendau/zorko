@@ -42,8 +42,9 @@ func (h *Handler) Router() http.Handler {
 	return corsMiddleware(mux)
 }
 
-// measure — метка проекта на все метрики запроса и полное время ответа SDK (с чтением тела)
-func (h *Handler) measure(next func(w http.ResponseWriter, r *http.Request, project string)) http.HandlerFunc {
+// measure — метка проекта на все метрики запроса и время его обработки. Замер идёт от конца
+// чтения тела (readRequest сдвигает start): сколько клиент передаёт тело по сети, в него не входит
+func (h *Handler) measure(next func(w http.ResponseWriter, r *http.Request, project string, start *time.Time)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -51,14 +52,14 @@ func (h *Handler) measure(next func(w http.ResponseWriter, r *http.Request, proj
 		projectId, _ := strconv.ParseInt(r.PathValue("project_id"), 10, 64)
 		project := h.usecase.ProjectLabel(projectId)
 
-		next(w, r, project)
+		next(w, r, project, &start)
 
 		metricRequestDuration.WithLabelValues(project).Observe(time.Since(start).Seconds())
 	}
 }
 
-func (h *Handler) envelope(w http.ResponseWriter, r *http.Request, project string) {
-	projectId, body, ok := h.readRequest(w, r, project)
+func (h *Handler) envelope(w http.ResponseWriter, r *http.Request, project string, start *time.Time) {
+	projectId, body, ok := h.readRequest(w, r, project, start)
 	if !ok {
 		return
 	}
@@ -127,8 +128,8 @@ func (h *Handler) replay(project string, event, recording []byte) *usecase.RawRe
 	return replay
 }
 
-func (h *Handler) store(w http.ResponseWriter, r *http.Request, project string) {
-	projectId, body, ok := h.readRequest(w, r, project)
+func (h *Handler) store(w http.ResponseWriter, r *http.Request, project string, start *time.Time) {
+	projectId, body, ok := h.readRequest(w, r, project, start)
 	if !ok {
 		return
 	}
@@ -156,7 +157,9 @@ func (h *Handler) store(w http.ResponseWriter, r *http.Request, project string) 
 	h.ingest(w, r, project, projectId, publicKeyFromRequest(r), events, nil, responseId)
 }
 
-func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request, project string) (int64, []byte, bool) {
+// readRequest — номер проекта и тело; после чтения тела сдвигает start, чтобы передача тела
+// по сети (и распаковка, которая идёт вместе с ней) не попадала во время обработки
+func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request, project string, start *time.Time) (int64, []byte, bool) {
 	projectId, err := strconv.ParseInt(r.PathValue("project_id"), 10, 64)
 	if err != nil || projectId <= 0 {
 		h.reject(w, project, http.StatusBadRequest, resultBadRequest, "bad project id")
@@ -164,6 +167,7 @@ func (h *Handler) readRequest(w http.ResponseWriter, r *http.Request, project st
 	}
 
 	body, err := readBody(r, h.maxBodyBytes)
+	*start = time.Now()
 	switch {
 	case errors.Is(err, errBodyTooLarge):
 		h.reject(w, project, http.StatusRequestEntityTooLarge, resultTooLarge, "body too large")

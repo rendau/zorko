@@ -37,7 +37,8 @@ var (
 		Name: "replay_new_total",
 	}, []string{"replay_type", "project"})
 
-	// полное время ответа SDK: чтение тела, проверки, запись в очередь
+	// время обработки запроса SDK от конца чтения тела: проверки, запись в очередь и в хранилище
+	// записей; передача тела по сети и отправка ответа сюда не входят
 	metricRequestDuration = metrics.Factory.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "ingest_request_duration_seconds",
 		Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},

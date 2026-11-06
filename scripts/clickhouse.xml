@@ -1,0 +1,58 @@
+<!--
+  zorko: защита диска ClickHouse от переполнения (кладётся в /etc/clickhouse-server/config.d/).
+  Копия настроек чарта helm-zeon (charts/argo/zorko/files/clickhouse.xml), менять вместе.
+
+  1. Служебные журналы ClickHouse (system.*_log) в образе по умолчанию без срока хранения —
+     на пустом zorko они росли на десятки МБ в час. Храним 3 дня; отладочные trace_log и
+     text_log выключены.
+     При смене срока ClickHouse переименовывает старую таблицу в <имя>_0 и создаёт новую:
+     старые копии и выключенные таблицы удаляются руками (DROP TABLE system.<имя>), см. README zorko, «Хранение и диски».
+  2. Свой журнал сервера — уровень warning вместо trace (файлы до 10 ГБ на диске ноды).
+  3. Запас свободного места: ClickHouse не займёт последний 1 ГБ диска — вставки получат
+     ошибку, события подождут в очереди Redpanda, база не упадёт на полном диске. Раньше
+     срабатывает уборка самого zorko (CH_DISK_MAX_USED_PERCENT): удаляет самые старые дни.
+-->
+<clickhouse>
+    <logger>
+        <level>warning</level>
+    </logger>
+
+    <query_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </query_log>
+    <query_thread_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </query_thread_log>
+    <query_views_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </query_views_log>
+    <query_metric_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </query_metric_log>
+    <part_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </part_log>
+    <metric_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </metric_log>
+    <asynchronous_metric_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </asynchronous_metric_log>
+    <error_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </error_log>
+    <processors_profile_log>
+        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
+    </processors_profile_log>
+
+    <trace_log remove="1"/>
+    <text_log remove="1"/>
+
+    <storage_configuration>
+        <disks>
+            <default>
+                <keep_free_space_bytes>1073741824</keep_free_space_bytes>
+            </default>
+        </disks>
+    </storage_configuration>
+</clickhouse>

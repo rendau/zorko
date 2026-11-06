@@ -82,6 +82,9 @@ const canPlay = computed(() => events.value.some(e => e.type === RRWEB_FULL_SNAP
 const startAt = computed(() => (Number.isFinite(at.value) && start.value ? Math.max(at.value - start.value - 5000, 0) : 0))
 const total = computed(() => (rep.value ? rep.value.summary.max_segment + 1 : 0))
 
+// отметки ошибок на шкале проигрывателя
+const marks = computed(() => (rep.value?.errors ?? []).map(e => ({ offset: Date.parse(e.timestamp) - start.value, title: e.title })))
+
 function seek(offsetMs: number) {
   player.value?.goto(offsetMs)
 }
@@ -142,8 +145,9 @@ const user = computed(() => summary.value ? (summary.value.user_email || summary
         <UAlert v-if="!loading && missing" color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('replay.missing', { n: missing, total })" />
         <UAlert v-if="!loading && events.length && !canPlay" color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('replay.noSnapshot')" />
 
-        <div v-if="!loading && canPlay" class="grid gap-4 xl:grid-cols-[1fr_24rem]">
-          <ReplayPlayer ref="player" :events="events" :start-at="startAt" @time="v => current = v" />
+        <!-- minmax(0, 1fr): колонка проигрывателя не растёт под его ширину и не выталкивает вкладки за экран -->
+        <div v-if="!loading && canPlay" class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+          <ReplayPlayer ref="player" :events="events" :start-at="startAt" :marks="marks" @time="v => current = v" />
           <ReplayItems :items="items" :errors="rep?.errors ?? []" :start="start" :current="current" @seek="seek" />
         </div>
       </div>

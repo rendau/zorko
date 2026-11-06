@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kadm"
 
 	queueModel "github.com/rendau/zorko/internal/service/queue/model"
 )
@@ -71,4 +72,50 @@ func TestPublishPollCommit(t *testing.T) {
 	defer shortCancel()
 	polled, _ := s2.PollEvents(shortCtx, 100)
 	assert.Empty(t, polled)
+}
+
+// Существующей теме (созданной до предела объёма) срок и предел выставляются при старте
+func TestEnsureTopicUpdatesRetention(t *testing.T) {
+	ctx, ctxCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer ctxCancel()
+
+	topic := "test.retention." + uuid.NewString()[:8]
+	conf := Config{
+		Brokers:         []string{"localhost:19092"},
+		Topic:           topic,
+		TopicPartitions: 1,
+		TopicRetention:  time.Hour,
+		WithProducer:    true,
+	}
+
+	old, err := New(conf)
+	require.NoError(t, err)
+	defer old.Close()
+	require.NoError(t, old.EnsureTopic(ctx))
+	assert.Equal(t, map[string]string{"retention.ms": "3600000", "retention.bytes": "-1"}, topicRetention(ctx, t, old, topic))
+
+	conf.TopicRetention = 2 * time.Hour
+	conf.TopicRetentionBytes = 512 << 20
+	s, err := New(conf)
+	require.NoError(t, err)
+	defer s.Close()
+	require.NoError(t, s.EnsureTopic(ctx))
+	assert.Equal(t, map[string]string{"retention.ms": "7200000", "retention.bytes": "536870912"}, topicRetention(ctx, t, s, topic))
+}
+
+func topicRetention(ctx context.Context, t *testing.T, s *Service, topic string) map[string]string {
+	t.Helper()
+	admin := kadm.NewClient(s.producer)
+	rcs, err := admin.DescribeTopicConfigs(ctx, topic)
+	require.NoError(t, err)
+	rc, err := rcs.On(topic, nil)
+	require.NoError(t, err)
+	got := map[string]string{}
+	for _, c := range rc.Configs {
+		if c.Key == "retention.ms" || c.Key == "retention.bytes" {
+			got[c.Key] = c.MaybeValue()
+		}
+	}
+	_, _ = admin.DeleteTopic(ctx, topic)
+	return got
 }

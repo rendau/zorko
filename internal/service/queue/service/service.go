@@ -24,6 +24,9 @@ type Config struct {
 	ConsumerGroup   string
 	TopicPartitions int32
 	TopicRetention  time.Duration
+	// предел объёма темы на раздел (retention.bytes): тема не займёт больше разделов × предел,
+	// даже если за TopicRetention пришло больше; 0 — без предела
+	TopicRetentionBytes int64
 
 	WithProducer bool
 	WithConsumer bool
@@ -92,7 +95,8 @@ func New(conf Config) (*Service, error) {
 	return s, nil
 }
 
-// EnsureTopic создаёт тему событий, если её нет
+// EnsureTopic создаёт тему событий, если её нет, а у существующей выставляет срок и предел
+// объёма хранения из конфига (они могли поменяться с прошлого запуска)
 func (s *Service) EnsureTopic(ctx context.Context) error {
 	client := lo.Ternary(s.producer != nil, s.producer, s.consumer)
 	if client == nil {
@@ -101,11 +105,30 @@ func (s *Service) EnsureTopic(ctx context.Context) error {
 
 	admin := kadm.NewClient(client)
 
-	_, err := admin.CreateTopic(ctx, s.conf.TopicPartitions, -1, map[string]*string{
-		"retention.ms": new(strconv.FormatInt(s.conf.TopicRetention.Milliseconds(), 10)),
-	}, s.conf.Topic)
-	if err != nil && !errors.Is(err, kerr.TopicAlreadyExists) {
+	configs := map[string]*string{
+		"retention.ms":    new(strconv.FormatInt(s.conf.TopicRetention.Milliseconds(), 10)),
+		"retention.bytes": new(strconv.FormatInt(lo.Ternary(s.conf.TopicRetentionBytes > 0, s.conf.TopicRetentionBytes, -1), 10)),
+	}
+
+	_, err := admin.CreateTopic(ctx, s.conf.TopicPartitions, -1, configs, s.conf.Topic)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, kerr.TopicAlreadyExists) {
 		return fmt.Errorf("kadm.CreateTopic: %w", err)
+	}
+
+	alter := lo.MapToSlice(configs, func(name string, value *string) kadm.AlterConfig {
+		return kadm.AlterConfig{Op: kadm.SetConfig, Name: name, Value: value}
+	})
+	resps, err := admin.AlterTopicConfigs(ctx, alter, s.conf.Topic)
+	if err != nil {
+		return fmt.Errorf("kadm.AlterTopicConfigs: %w", err)
+	}
+	for _, r := range resps {
+		if r.Err != nil {
+			return fmt.Errorf("kadm.AlterTopicConfigs(%s): %w %s", r.Name, r.Err, r.ErrMessage)
+		}
 	}
 
 	return nil

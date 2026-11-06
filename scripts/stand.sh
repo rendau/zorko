@@ -19,6 +19,7 @@ up() {
 		-e TZ=Asia/Almaty -e CLICKHOUSE_USER=zorko -e CLICKHOUSE_PASSWORD=zorko -e CLICKHOUSE_DB=zorko \
 		-e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
 		--ulimit nofile=262144:262144 \
+		-v "$(cd "$(dirname "$0")" && pwd)/clickhouse.xml:/etc/clickhouse-server/config.d/zorko.xml:ro" \
 		-p 19000:9000 -p 18123:8123 "$CH_IMAGE" >/dev/null
 
 	docker run --rm -d --name zorko-redpanda \

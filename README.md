@@ -111,6 +111,40 @@ ADR 012–016.
   до `REPLAY_MAX_SEGMENT_BYTES` (10 МБ).
 - Мобильные приложения (Flutter, React Native — там запись видео) пока не принимаются.
 
+## Хранение и диски
+
+Данные хранятся 30 дней, но три предохранителя не дают дискам переполниться раньше (ADR-017):
+
+- **Журналы самого ClickHouse** (`system.*_log`) по умолчанию хранятся вечно и на пустом сервисе
+  растут на десятки МБ в час. Настройки сервера — `scripts/clickhouse.xml` (стенд) и
+  `charts/argo/zorko/files/clickhouse.xml` в helm-zeon (менять вместе): журналы — 3 дня,
+  `trace_log` и `text_log` выключены, журнал сервера — уровень `warning`, ClickHouse не занимает
+  последний 1 ГБ диска.
+- **Данные zorko в ClickHouse.** Раз в `CH_DISK_CHECK_INTERVAL` (10 мин) одна из копий обработки
+  смотрит диск; если занято больше `CH_DISK_MAX_USED_PERCENT` (80 %), удаляет самые старые дни во
+  всех таблицах zorko, пока не станет ниже. Сегодняшний день не трогается. Метрики:
+  `chdisk_used_percent`, `chdisk_kept_days` (сколько дней сейчас хранится на самом деле),
+  `chdisk_dropped_days_total`. Удалять нечего, а предел превышен — ошибка в логе
+  `chdiskgc: disk over limit, nothing more to drop`: место заняли не данные zorko.
+- **Очередь Redpanda.** Кроме срока `KAFKA_TOPIC_RETENTION` (24 ч) — предел объёма на раздел
+  `KAFKA_TOPIC_RETENTION_BYTES` (512 МБ; 12 разделов × 2 темы ≈ 12 ГБ). При наплыве старые
+  сообщения уходят раньше срока. Срок и предел выставляются при старте и уже существующим темам.
+
+Postgres хранит проблемы, проекты и метаданные карт — сотни МБ на годы, предел ему не нужен.
+
+После первого выката настроек ClickHouse старые журналы остаются на диске: ClickHouse
+переименовывает таблицы со сменившимся сроком в `<имя>_0`, а выключенные не трогает. Посмотреть и
+удалить:
+
+```sql
+select table, formatReadableSize(sum(bytes_on_disk)) from system.parts
+where database = 'system' group by table order by sum(bytes_on_disk) desc;
+
+drop table if exists system.trace_log sync;
+drop table if exists system.text_log sync;
+drop table if exists system.query_log_0 sync;   -- и остальные system.*_0 из списка
+```
+
 ## Локально
 
 ```bash
