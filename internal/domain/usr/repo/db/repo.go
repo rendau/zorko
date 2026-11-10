@@ -93,10 +93,13 @@ func (r *Repo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// wrapWriteErr — занятый логин отдаётся отказом по делу, а не сбоем
+// wrapWriteErr — занятый логин и уже привязанный id провайдера отдаются отказом по делу, а не сбоем
 func wrapWriteErr(op string, err error) error {
 	if commonRepoPg.IsUniqueViolation(err, "usr_username_key") {
 		return errs.UsrUsernameExists
+	}
+	if commonRepoPg.IsUniqueViolation(err, "usr_ext_sub_key") {
+		return errs.UsrExtSubExists
 	}
 	return fmt.Errorf("%s: %w", op, err)
 }

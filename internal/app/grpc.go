@@ -33,14 +33,16 @@ type GrpcServer struct {
 	server *grpc.Server
 }
 
-func NewGrpcServer(name string, sessionSvc *domainSessionServiceP.Service, register func(*grpc.Server)) *GrpcServer {
+// authenticatorI — сессия по токену в режиме AUTH_MODE (internal/service/authn, ADR-019)
+type authenticatorI interface {
+	Authenticate(ctx context.Context, token string) (*sessionModel.Session, error)
+}
+
+func NewGrpcServer(name string, sessionSvc *domainSessionServiceP.Service, authenticator authenticatorI, register func(*grpc.Server)) *GrpcServer {
 	interceptors := make([]grpc.UnaryServerInterceptor, 0, 6)
 
 	// ctx without cancel
 	interceptors = append(interceptors, GrpcInterceptorCtxWithoutCancel())
-
-	// session (JWT)
-	interceptors = append(interceptors, GrpcInterceptorSession(sessionSvc))
 
 	// recovery
 	interceptors = append(interceptors, GrpcInterceptorRecovery())
@@ -57,6 +59,10 @@ func NewGrpcServer(name string, sessionSvc *domainSessionServiceP.Service, regis
 	if metrics.Enabled {
 		interceptors = append(interceptors, GrpcInterceptorMetrics())
 	}
+
+	// session — последним: сбой при поиске человека (БД, провайдер входа) проходит через error и
+	// metrics как обычная ошибка метода
+	interceptors = append(interceptors, GrpcInterceptorSession(sessionSvc, authenticator))
 
 	// server
 	server := grpc.NewServer(
@@ -225,21 +231,21 @@ func grpcCodeFor(code string) codes.Code {
 	switch errs.Err(code) {
 	case errs.NotAuthorized:
 		return codes.Unauthenticated
-	case errs.NoPermission:
+	case errs.NoPermission, errs.UsrDisabled:
 		return codes.PermissionDenied
 	}
 	return codes.InvalidArgument
 }
 
-// GrpcInterceptorSession кладёт в контекст сессию из `authorization: Bearer <jwt>` (ADR-005);
+// GrpcInterceptorSession кладёт в контекст сессию из `authorization: Bearer <jwt>` (ADR-005, ADR-019);
 // без токена или с негодным — пустая сессия, права решает usecase
-func GrpcInterceptorSession(sessionSvc *domainSessionServiceP.Service) grpc.UnaryServerInterceptor {
+func GrpcInterceptorSession(sessionSvc *domainSessionServiceP.Service, authenticator authenticatorI) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		var session *sessionModel.Session
 
 		if token := grpcExtractBearerToken(ctx); token != "" {
-			if parsed, parseErr := sessionSvc.FromToken(token); parseErr == nil && parsed.IsAuthorized() {
-				session = parsed
+			if session, err = authenticator.Authenticate(ctx, token); err != nil {
+				return nil, fmt.Errorf("authenticator.Authenticate: %w", err)
 			}
 		}
 

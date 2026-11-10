@@ -31,7 +31,13 @@ const (
 	UsrUsernameExists = Err("usr_username_exists")
 	LoginRateLimited  = Err("login_rate_limited")
 	UsrSelfChange     = Err("usr_self_change")
-	InvalidQuery      = Err("invalid_query")
+	UsrExtSubExists   = Err("usr_ext_sub_exists") // id провайдера уже привязан к другому человеку
+	// AuthExternal — вход через внешний провайдер (AUTH_MODE oidc/proxy, ADR-019): вход по паролю,
+	// первый админ и правка логина/пароля выключены — ими управляет провайдер
+	AuthExternal = Err("auth_external")
+	// UsrDisabled — вошёл через внешний провайдер, но в «Людях» zorko отключён
+	UsrDisabled  = Err("usr_disabled")
+	InvalidQuery = Err("invalid_query")
 
 	IngestKeyInvalid   = Err("ingest_key_invalid")
 	IngestOriginDenied = Err("ingest_origin_denied")

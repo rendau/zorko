@@ -32,8 +32,25 @@ var precompressedEncodings = []precompressedEncoding{
 	{name: "gzip", ext: ".gz"},
 }
 
+// AdminConfig — рантайм-конфиг SPA (window.__APP_CONFIG__ в /config.js): один билд на все окружения
+type AdminConfig struct {
+	ApiBaseUrl string          `json:"apiBaseUrl"`
+	Auth       AdminAuthConfig `json:"auth"`
+}
+
+// AdminAuthConfig — способ входа (AUTH_MODE, ADR-019) и что интерфейсу нужно для него знать
+type AdminAuthConfig struct {
+	Mode            string `json:"mode"`
+	OidcIssuer      string `json:"oidcIssuer,omitempty"`
+	OidcClientId    string `json:"oidcClientId,omitempty"`
+	OidcScopes      string `json:"oidcScopes,omitempty"`
+	ProxyLoginUrl   string `json:"proxyLoginUrl,omitempty"`
+	ProxyRefreshUrl string `json:"proxyRefreshUrl,omitempty"`
+	ProxyLogoutUrl  string `json:"proxyLogoutUrl,omitempty"`
+}
+
 // AdminHttpServerCreate — сервер интерфейса; nil, если каталога сборки нет (интерфейс выключен)
-func AdminHttpServerCreate(port, dir, apiBaseUrl string) *http.Server {
+func AdminHttpServerCreate(port, dir string, cfg AdminConfig) *http.Server {
 	if stat, err := os.Stat(filepath.Join(dir, "index.html")); err != nil || stat.IsDir() {
 		slog.Warn("admin: index.html not found, admin-http-server disabled", "dir", dir)
 		return nil
@@ -41,7 +58,7 @@ func AdminHttpServerCreate(port, dir, apiBaseUrl string) *http.Server {
 
 	return &http.Server{
 		Addr:              ":" + port,
-		Handler:           recoverMiddleware(newAdminHandler(dir, apiBaseUrl)),
+		Handler:           recoverMiddleware(newAdminHandler(dir, cfg)),
 		ReadHeaderTimeout: 2 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -50,9 +67,9 @@ func AdminHttpServerCreate(port, dir, apiBaseUrl string) *http.Server {
 	}
 }
 
-func newAdminHandler(dir, apiBaseUrl string) http.Handler {
+func newAdminHandler(dir string, cfg AdminConfig) http.Handler {
 	indexPath := filepath.Join(dir, "index.html")
-	configJs := adminConfigJs(apiBaseUrl)
+	configJs := adminConfigJs(cfg)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -84,8 +101,8 @@ func newAdminHandler(dir, apiBaseUrl string) http.Handler {
 }
 
 // adminConfigJs — рантайм-конфиг SPA: один билд на все окружения
-func adminConfigJs(apiBaseUrl string) []byte {
-	value, _ := json.Marshal(map[string]string{"apiBaseUrl": apiBaseUrl})
+func adminConfigJs(cfg AdminConfig) []byte {
+	value, _ := json.Marshal(cfg)
 	return []byte("window.__APP_CONFIG__ = " + string(value) + ";\n")
 }
 

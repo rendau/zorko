@@ -273,3 +273,22 @@ S3_SECRET_KEY=zorko-secret
 (интерфейс и API на разных портах). Тестовые люди стенда: `admin` / `admin-pass-1` (админ),
 `oleg` / `oleg-pass-1` (участник) — создаются вручную на `/setup` и в «Людях», в базу не зашиты.
 Интеграционные тесты (`-tags integration`) ходят на эти адреса.
+
+Проверка внешнего входа (ADR-019) — на стенде ruto (`../ruto`, CLAUDE.md, «Тестовый стенд»):
+Keycloak `ruto-test-kc` (`:8180`, realm `corp`, люди `alice` / `alice-pass` с realm-ролью `auditor`,
+`bob` / `bob-pass` без ролей), core ruto и шлюз. Порты zorko заняты — core ruto запускать на
+`HTTP_PORT=19090 GRPC_PORT=15050 SYSTEM_PORT=13003`, шлюз — `HTTP_PORT=8088 SYSTEM_PORT=13004
+CORE_GRPC_ADDRESS=localhost:15050`.
+- `oidc`: в realm `corp` — public-клиент `zorko-ui` (PKCE S256, redirect
+  `http://localhost:8001/login/callback`, web origin `http://localhost:8001`, post logout
+  `http://localhost:8001/login`); zorko — `AUTH_MODE=oidc OIDC_ISSUER=http://localhost:8180/realms/corp
+  OIDC_CLIENT_ID=zorko-ui AUTH_ADMIN_ROLE=auditor ADMIN_API_BASE_URL=http://localhost:9090 HTTP_CORS=true`.
+- `proxy`: в ruto — провайдер `corp` (клиент `ruto` / `ruto-secret`), CORS `http://localhost:8001` с
+  `allow_credentials`, приложение `zorko` (префикс `zorko`, `allow_wildcard`, бэкенд
+  `http://127.0.0.1:9090`, ручки `*` на GET/POST/PUT/DELETE с методом `jwt` провайдера `corp`); у
+  клиента `ruto` в Keycloak — post logout `http://localhost:8001/*`; zorko — `AUTH_MODE=proxy
+  AUTH_ADMIN_ROLE=auditor ADMIN_API_BASE_URL=http://localhost:8088/zorko
+  AUTH_PROXY_LOGIN_URL='http://localhost:8088/_auth/corp/login?redirect={url}'
+  AUTH_PROXY_REFRESH_URL=http://localhost:8088/_auth/corp/refresh
+  AUTH_PROXY_LOGOUT_URL='http://localhost:8088/_auth/corp/logout?redirect={url}'` (без `HTTP_CORS`:
+  CORS отдаёт шлюз). Access-токен realm живёт 60 с — продление видно через минуту.

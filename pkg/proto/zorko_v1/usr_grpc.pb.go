@@ -40,7 +40,8 @@ const (
 type UsrServiceClient interface {
 	List(ctx context.Context, in *UsrListReq, opts ...grpc.CallOption) (*UsrListRep, error)
 	Get(ctx context.Context, in *UsrGetReq, opts ...grpc.CallOption) (*UsrMain, error)
-	// Create — админ; без входа — только первый человек (он становится админом)
+	// Create — админ; без входа — только первый человек (он становится админом). При внешнем входе
+	// (AUTH_MODE oidc/proxy) пароль и флаг админа не принимаются, первого человека без входа нет.
 	Create(ctx context.Context, in *UsrCreateReq, opts ...grpc.CallOption) (*UsrCreateRep, error)
 	Update(ctx context.Context, in *UsrUpdateReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	Delete(ctx context.Context, in *UsrGetReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -170,7 +171,8 @@ func (c *usrServiceClient) UpdateProfile(ctx context.Context, in *UsrUpdateProfi
 type UsrServiceServer interface {
 	List(context.Context, *UsrListReq) (*UsrListRep, error)
 	Get(context.Context, *UsrGetReq) (*UsrMain, error)
-	// Create — админ; без входа — только первый человек (он становится админом)
+	// Create — админ; без входа — только первый человек (он становится админом). При внешнем входе
+	// (AUTH_MODE oidc/proxy) пароль и флаг админа не принимаются, первого человека без входа нет.
 	Create(context.Context, *UsrCreateReq) (*UsrCreateRep, error)
 	Update(context.Context, *UsrUpdateReq) (*emptypb.Empty, error)
 	Delete(context.Context, *UsrGetReq) (*emptypb.Empty, error)

@@ -36,9 +36,18 @@ func (r *Repo) getConditions(pars *model.ListReq) (map[string]any, map[string][]
 }
 
 func (r *Repo) GetByUsername(ctx context.Context, username string) (*model.Main, bool, error) {
+	return r.getOne(ctx, map[string]any{"username": username})
+}
+
+// GetByExtSub — человек по id у внешнего провайдера входа (ADR-019)
+func (r *Repo) GetByExtSub(ctx context.Context, extSub string) (*model.Main, bool, error) {
+	return r.getOne(ctx, map[string]any{"ext_sub": extSub})
+}
+
+func (r *Repo) getOne(ctx context.Context, conditions map[string]any) (*model.Main, bool, error) {
 	items := make([]*repoModel.Select, 0, 1)
 	_, err := r.ModelStore.List(ctx, mobone.ListParams{
-		Conditions: map[string]any{"username": username},
+		Conditions: conditions,
 		PageSize:   1,
 	}, func(add bool) mobone.ListModelI {
 		item := &repoModel.Select{}

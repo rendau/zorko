@@ -52,6 +52,16 @@ func (r *repoFake) GetByUsername(_ context.Context, username string) (*model.Mai
 	return nil, false, nil
 }
 
+func (r *repoFake) GetByExtSub(_ context.Context, extSub string) (*model.Main, bool, error) {
+	for _, v := range r.items {
+		if v.ExtSub == extSub {
+			c := *v
+			return &c, true, nil
+		}
+	}
+	return nil, false, nil
+}
+
 func (r *repoFake) HasAny(context.Context) (bool, error) { return len(r.items) > 0, nil }
 
 func (r *repoFake) Create(_ context.Context, obj *model.Edit) (int64, error) {
@@ -93,6 +103,12 @@ func apply(v *model.Main, obj *model.Edit) {
 	if obj.ProjectIds != nil {
 		v.ProjectIds = *obj.ProjectIds
 	}
+	if obj.AllProjects != nil {
+		v.AllProjects = *obj.AllProjects
+	}
+	if obj.ExtSub != nil {
+		v.ExtSub = *obj.ExtSub
+	}
 }
 
 // projectFake — существующие проекты: 1, 2, 3
@@ -111,14 +127,20 @@ func (projectFake) List(_ context.Context, pars *projectModel.ListReq) ([]*proje
 type env struct {
 	uc       *Usecase
 	sessions *sessionService.Service
+	repo     *repoFake
 }
 
 func newEnv() *env {
+	return newEnvWith(false)
+}
+
+func newEnvWith(externalAuth bool) *env {
 	sessions := sessionService.New("test-secret")
 	repo := &repoFake{items: map[int64]*model.Main{}}
 	return &env{
-		uc:       New(usrService.New(repo), sessions, loginlimitService.New(5, time.Minute), projectFake{}),
+		uc:       New(usrService.New(repo), sessions, loginlimitService.New(5, time.Minute), projectFake{}, externalAuth),
 		sessions: sessions,
+		repo:     repo,
 	}
 }
 
@@ -274,12 +296,56 @@ func TestProjectIds(t *testing.T) {
 	oleg, _ = e.uc.Get(adminCtx, id)
 	assert.Equal(t, []int64{2, 1}, oleg.ProjectIds, "не передан — не меняется")
 
-	err = e.uc.Update(adminCtx, id, &model.Edit{ProjectIds: new([]int64{8, 9})})
-	full, ok := errs.AsErrFull(err)
-	require.True(t, ok)
-	assert.ErrorIs(t, full.Err, errs.ProjectNotFound, "все выбранные удалены — не превращаем в «все проекты»")
-
-	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{ProjectIds: new([]int64{})}))
+	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{ProjectIds: new([]int64{8, 9})}))
 	oleg, _ = e.uc.Get(adminCtx, id)
-	assert.Empty(t, oleg.ProjectIds, "пустой список — все проекты")
+	assert.Empty(t, oleg.ProjectIds, "все выбранные удалены — ни одного проекта")
+	assert.False(t, oleg.AllProjects, "пустой список не значит «все проекты»")
+
+	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{AllProjects: new(true)}))
+	oleg, _ = e.uc.Get(adminCtx, id)
+	assert.True(t, oleg.AllProjects)
+}
+
+// TestExternalAuth — AUTH_MODE oidc/proxy (ADR-019): вход по паролю, первый админ и правка профиля
+// выключены, пароль и флаг админа не принимаются, логин привязанного человека не меняется
+func TestExternalAuth(t *testing.T) {
+	e := newEnvWith(true)
+	ctx := context.Background()
+
+	bootstrap, err := e.uc.BootstrapStatus(ctx)
+	require.NoError(t, err)
+	assert.False(t, bootstrap, "первого админа даёт провайдер")
+
+	_, err = e.uc.Create(ctx, &model.Edit{Username: new("admin"), Password: new("password-1")})
+	assert.ErrorIs(t, err, errs.NotAuthorized, "без входа никого не завести")
+
+	_, err = e.uc.Login(ctx, "admin", "password-1", "1.1.1.1")
+	assert.ErrorIs(t, err, errs.AuthExternal)
+	_, err = e.uc.RefreshToken(ctx, "x")
+	assert.ErrorIs(t, err, errs.AuthExternal)
+
+	e.repo.items[1] = &model.Main{Id: 1, Active: true, IsAdmin: true, Username: "admin", ExtSub: "sub-admin"}
+	adminCtx := e.as(1, true)
+
+	assert.ErrorIs(t, e.uc.UpdateProfile(adminCtx, &UpdateProfileReq{Name: new("x")}), errs.AuthExternal)
+
+	id, err := e.uc.Create(adminCtx, &model.Edit{Username: new("Oleg@Mechta.kz"), IsAdmin: new(true), Password: new("password-1"), ProjectIds: new([]int64{2})})
+	require.NoError(t, err, "заранее: логин-почта годится, пароль не нужен")
+	oleg, _ := e.uc.Get(adminCtx, id)
+	assert.Equal(t, "oleg@mechta.kz", oleg.Username)
+	assert.False(t, oleg.IsAdmin, "флаг админа — от провайдера")
+	assert.Empty(t, oleg.Password)
+	assert.Equal(t, []int64{2}, oleg.ProjectIds)
+
+	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{Username: new("oleg"), Password: new("password-2"), IsAdmin: new(true)}))
+	oleg, _ = e.uc.Get(adminCtx, id)
+	assert.Equal(t, "oleg", oleg.Username, "не привязан — логин можно поправить")
+	assert.False(t, oleg.IsAdmin)
+	assert.Empty(t, oleg.Password)
+
+	e.repo.items[id].ExtSub = "sub-oleg"
+	require.NoError(t, e.uc.Update(adminCtx, id, &model.Edit{Username: new("other"), Name: new("Олег")}))
+	oleg, _ = e.uc.Get(adminCtx, id)
+	assert.Equal(t, "oleg", oleg.Username, "привязан — логин от провайдера")
+	assert.Equal(t, "Олег", oleg.Name)
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -57,6 +58,7 @@ import (
 	serviceAccessServiceP "github.com/rendau/zorko/internal/service/access/service"
 	serviceArtifactgcServiceP "github.com/rendau/zorko/internal/service/artifactgc/service"
 	serviceAssembleServiceP "github.com/rendau/zorko/internal/service/assemble/service"
+	serviceAuthnServiceP "github.com/rendau/zorko/internal/service/authn/service"
 	serviceChdiskgcServiceP "github.com/rendau/zorko/internal/service/chdiskgc/service"
 	serviceGroupingServiceP "github.com/rendau/zorko/internal/service/grouping/service"
 	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
@@ -185,8 +187,9 @@ func (a *App) Init() {
 		replayService = domainReplayServiceP.New(domainReplayRepoChP.New(a.chConn), replayBlob, domainReplayRepoDbP.New(a.pgpool))
 	}
 
-	// session
-	if config.Conf.JwtSecret == "" {
+	// session (свои токены, ADR-005); JWT_SECRET нужен только при AUTH_MODE=local
+	authMode := strings.ToLower(strings.TrimSpace(config.Conf.AuthMode))
+	if authMode == constant.AuthModeLocal && config.Conf.JwtSecret == "" {
 		errCheck(errors.New("JWT_SECRET is empty"), "session init")
 	}
 	sessionService := domainSessionServiceP.New(config.Conf.JwtSecret)
@@ -195,6 +198,21 @@ func (a *App) Init() {
 	usrRepo := domainUsrRepoDbP.New(a.pgpool)
 	usrService := domainUsrServiceP.New(usrRepo)
 
+	// authn (способ входа — AUTH_MODE, ADR-019)
+	authnService, err := serviceAuthnServiceP.New(serviceAuthnServiceP.Config{
+		Mode:          authMode,
+		AdminRole:     config.Conf.AuthAdminRole,
+		RolesClaim:    config.Conf.AuthRolesClaim,
+		UsernameClaim: config.Conf.AuthUsernameClaim,
+		OidcIssuer:    config.Conf.OidcIssuer,
+		OidcAudience:  config.Conf.OidcAudience,
+	}, sessionService, usrService)
+	errCheck(err, "authn init")
+	slog.Info("auth mode", "mode", authMode)
+	if authMode == constant.AuthModeProxy {
+		slog.Warn("AUTH_MODE=proxy: token signatures are not checked, the API must be reachable only through the gateway")
+	}
+
 	// project
 	projectRepo := domainProjectRepoDbP.New(a.pgpool)
 	projectService := domainProjectServiceP.New(projectRepo)
@@ -202,7 +220,8 @@ func (a *App) Init() {
 	// access (какие проекты видит вошедший человек)
 	accessService := serviceAccessServiceP.New(sessionService, usrService)
 
-	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute), projectService)
+	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute), projectService,
+		authMode != constant.AuthModeLocal)
 	usrHandler := handlerGrpcP.NewUsr(usrUsecase)
 
 	projectUsecase := usecaseProjectP.New(projectService, sessionService, accessService, config.Conf.S3Endpoint != "")
@@ -400,11 +419,11 @@ func (a *App) Init() {
 	replayUsecase := usecaseReplayP.New(sessionService, projectService, issueReadService, replayService, accessService,
 		config.Conf.ReplayMaxSegmentBytes+1<<20)
 	replayHandler := handlerGrpcP.NewReplay(replayUsecase)
-	replaySegmentHandler := handlerReplaysegP.New(replayUsecase, sessionService)
+	replaySegmentHandler := handlerReplaysegP.New(replayUsecase, sessionService, authnService)
 
 	// grpc server
 	{
-		a.grpcServer = NewGrpcServer("main", sessionService, func(server *grpc.Server) {
+		a.grpcServer = NewGrpcServer("main", sessionService, authnService, func(server *grpc.Server) {
 			zorko_v1.RegisterUsrServiceServer(server, usrHandler)
 			zorko_v1.RegisterOrgServiceServer(server, orgHandler)
 			zorko_v1.RegisterProjectServiceServer(server, projectHandler)
@@ -482,7 +501,21 @@ func (a *App) Init() {
 
 	// admin http server (интерфейс)
 	{
-		a.adminHttpServer = AdminHttpServerCreate(config.Conf.AdminPort, config.Conf.AdminDir, config.Conf.AdminApiBaseUrl)
+		authCfg := AdminAuthConfig{Mode: authMode}
+		switch authMode {
+		case constant.AuthModeOidc:
+			authCfg.OidcIssuer = config.Conf.OidcIssuer
+			authCfg.OidcClientId = config.Conf.OidcClientId
+			authCfg.OidcScopes = config.Conf.OidcScopes
+		case constant.AuthModeProxy:
+			authCfg.ProxyLoginUrl = config.Conf.AuthProxyLoginUrl
+			authCfg.ProxyRefreshUrl = config.Conf.AuthProxyRefreshUrl
+			authCfg.ProxyLogoutUrl = config.Conf.AuthProxyLogoutUrl
+		}
+		a.adminHttpServer = AdminHttpServerCreate(config.Conf.AdminPort, config.Conf.AdminDir, AdminConfig{
+			ApiBaseUrl: config.Conf.AdminApiBaseUrl,
+			Auth:       authCfg,
+		})
 	}
 
 	// system http server (healthcheck, docs, metrics)

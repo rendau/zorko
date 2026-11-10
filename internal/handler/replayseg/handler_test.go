@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/rendau/zorko/internal/constant"
 	sessionService "github.com/rendau/zorko/internal/domain/session/service"
 	"github.com/rendau/zorko/internal/errs"
+	authnService "github.com/rendau/zorko/internal/service/authn/service"
 )
 
 type usecaseFake struct {
@@ -38,6 +40,8 @@ func TestSegment(t *testing.T) {
 	sessions := sessionService.New("secret")
 	token, err := sessions.CreateToken(2, false)
 	require.NoError(t, err)
+	authn, err := authnService.New(authnService.Config{Mode: constant.AuthModeLocal}, sessions, nil)
+	require.NoError(t, err)
 
 	do := func(uc *usecaseFake, auth string, n string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodGet, "/replay/abc/segment/"+n+"?project_id=10", nil)
@@ -45,7 +49,7 @@ func TestSegment(t *testing.T) {
 			r.Header.Set("Authorization", auth)
 		}
 		w := httptest.NewRecorder()
-		New(uc, sessions).Segment(w, r, map[string]string{"id": "abc", "n": n})
+		New(uc, sessions, authn).Segment(w, r, map[string]string{"id": "abc", "n": n})
 		return w
 	}
 

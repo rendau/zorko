@@ -27,7 +27,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   }],
   [
     { label: t('layout.language'), icon: 'i-lucide-languages', children: languageItems.value },
-    { label: t('layout.profile'), icon: 'i-lucide-key-round', onSelect: () => { passwordOpen.value = true } },
+    { label: isExternalAuth() ? t('profile.title') : t('layout.profile'), icon: isExternalAuth() ? 'i-lucide-user' : 'i-lucide-key-round', onSelect: () => { passwordOpen.value = true } },
     { label: t('layout.logout'), icon: 'i-lucide-log-out', onSelect: () => auth.logout() },
   ],
 ])

@@ -23,17 +23,22 @@ type usecaseI interface {
 }
 
 type sessionServiceI interface {
-	FromToken(tokenStr string) (*sessionModel.Session, error)
 	WithContext(ctx context.Context, session *sessionModel.Session) context.Context
 }
 
-type Handler struct {
-	usecase    usecaseI
-	sessionSvc sessionServiceI
+// authenticatorI — сессия по токену в режиме AUTH_MODE (internal/service/authn, ADR-019)
+type authenticatorI interface {
+	Authenticate(ctx context.Context, token string) (*sessionModel.Session, error)
 }
 
-func New(uc usecaseI, sessionSvc sessionServiceI) *Handler {
-	return &Handler{usecase: uc, sessionSvc: sessionSvc}
+type Handler struct {
+	usecase       usecaseI
+	sessionSvc    sessionServiceI
+	authenticator authenticatorI
+}
+
+func New(uc usecaseI, sessionSvc sessionServiceI, authenticator authenticatorI) *Handler {
+	return &Handler{usecase: uc, sessionSvc: sessionSvc, authenticator: authenticator}
 }
 
 // Segment — подпись runtime.HandlerFunc grpc-gateway
@@ -41,8 +46,10 @@ func (h *Handler) Segment(w http.ResponseWriter, r *http.Request, pathParams map
 	// сессия — как в gRPC (GrpcInterceptorSession): без токена или с негодным — пустая, права решает usecase
 	var session *sessionModel.Session
 	if token := bearerToken(r.Header.Get("Authorization")); token != "" {
-		if parsed, err := h.sessionSvc.FromToken(token); err == nil && parsed.IsAuthorized() {
-			session = parsed
+		var err error
+		if session, err = h.authenticator.Authenticate(r.Context(), token); err != nil {
+			h.fail(w, r, err)
+			return
 		}
 	}
 	ctx := h.sessionSvc.WithContext(r.Context(), session)
@@ -74,7 +81,7 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, err error) {
 	switch code {
 	case errs.NotAuthorized:
 		status = http.StatusUnauthorized
-	case errs.NoPermission:
+	case errs.NoPermission, errs.UsrDisabled:
 		status = http.StatusForbidden
 	case errs.ReplayNotFound, errs.ReplayDisabled:
 		status = http.StatusNotFound

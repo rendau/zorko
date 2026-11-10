@@ -16,14 +16,16 @@ func EncodeUsrMain(v *domainModel.Main, _ int) *proto.UsrMain {
 		return nil
 	}
 	return &proto.UsrMain{
-		Id:         v.Id,
-		CreatedAt:  timestamppb.New(v.CreatedAt),
-		ModifiedAt: timestamppb.New(v.ModifiedAt),
-		Active:     v.Active,
-		IsAdmin:    v.IsAdmin,
-		Name:       v.Name,
-		Username:   v.Username,
-		ProjectIds: v.ProjectIds,
+		Id:          v.Id,
+		CreatedAt:   timestamppb.New(v.CreatedAt),
+		ModifiedAt:  timestamppb.New(v.ModifiedAt),
+		Active:      v.Active,
+		IsAdmin:     v.IsAdmin,
+		Name:        v.Name,
+		Username:    v.Username,
+		ProjectIds:  v.ProjectIds,
+		AllProjects: v.AllProjects,
+		External:    v.ExtSub != "",
 	}
 }
 
@@ -43,23 +45,25 @@ func DecodeUsrListReq(v *proto.UsrListReq) *domainModel.ListReq {
 
 func DecodeUsrCreateReq(v *proto.UsrCreateReq) *domainModel.Edit {
 	return &domainModel.Edit{
-		Active:     v.Active,
-		IsAdmin:    v.IsAdmin,
-		Name:       v.Name,
-		Username:   v.Username,
-		Password:   v.Password,
-		ProjectIds: lo.EmptyableToPtr(v.GetProjectIds()), // пусто — default в БД (все проекты)
+		Active:      v.Active,
+		IsAdmin:     v.IsAdmin,
+		Name:        v.Name,
+		Username:    v.Username,
+		Password:    v.Password,
+		ProjectIds:  lo.EmptyableToPtr(v.GetProjectIds()), // пусто — default в БД (ни одного)
+		AllProjects: v.AllProjects,
 	}
 }
 
 func DecodeUsrUpdateReq(v *proto.UsrUpdateReq) *domainModel.Edit {
 	return &domainModel.Edit{
-		Active:     v.Active,
-		IsAdmin:    v.IsAdmin,
-		Name:       v.Name,
-		Username:   v.Username,
-		Password:   v.Password,
-		ProjectIds: decodeUsrProjectIdList(v.GetProjectIds()),
+		Active:      v.Active,
+		IsAdmin:     v.IsAdmin,
+		Name:        v.Name,
+		Username:    v.Username,
+		Password:    v.Password,
+		ProjectIds:  decodeUsrProjectIdList(v.GetProjectIds()),
+		AllProjects: v.AllProjects,
 	}
 }
 

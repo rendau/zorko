@@ -23,7 +23,8 @@ service UsrService {
     };
   }
 
-  // Create — админ; без входа — только первый человек (он становится админом)
+  // Create — админ; без входа — только первый человек (он становится админом). При внешнем входе
+  // (AUTH_MODE oidc/proxy) пароль и флаг админа не принимаются, первого человека без входа нет.
   rpc Create(UsrCreateReq) returns (UsrCreateRep) {
     option (google.api.http) = {
       post: "/usr"
@@ -89,8 +90,12 @@ message UsrMain {
   bool is_admin = 5;
   string name = 6;
   string username = 7;
-  // проекты, которые видит участник; пусто — все проекты. Админу не ограничивает.
+  // проекты, которые видит участник (если не all_projects); пусто — ни одного. Админу не ограничивает.
   repeated int64 project_ids = 8;
+  // видит все проекты
+  bool all_projects = 9;
+  // привязан к внешнему провайдеру входа (ADR-019): логин, имя и флаг админа приходят от него
+  bool external = 10;
 }
 
 // UsrProjectIdList — обёртка списка проектов: не передан — список не меняется
@@ -126,6 +131,7 @@ message UsrCreateReq {
   optional string username = 4;
   optional string password = 5;
   repeated int64 project_ids = 6;
+  optional bool all_projects = 7;
 }
 
 message UsrCreateRep {
@@ -142,6 +148,7 @@ message UsrUpdateReq {
   optional string username = 5;
   optional string password = 6;
   UsrProjectIdList project_ids = 7;
+  optional bool all_projects = 8;
 }
 
 // Вход

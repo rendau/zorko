@@ -33,7 +33,8 @@ func (s *Service) ProjectAccess(ctx context.Context) (*model.ProjectAccess, erro
 		return nil, errs.NotAuthorized
 	}
 
-	if usr.IsAdmin || len(usr.ProjectIds) == 0 {
+	// пустой список без AllProjects — ни одного проекта: так заводится человек при внешнем входе
+	if usr.IsAdmin || usr.AllProjects {
 		return &model.ProjectAccess{All: true}, nil
 	}
 	return &model.ProjectAccess{Ids: usr.ProjectIds}, nil

@@ -45,7 +45,7 @@ func get(h http.Handler, path, acceptEncoding string, headers ...string) *httpte
 }
 
 func TestAdminEncodings(t *testing.T) {
-	h := newAdminHandler(adminDir(t), "https://api.zorko.test")
+	h := newAdminHandler(adminDir(t), AdminConfig{ApiBaseUrl: "https://api.zorko.test"})
 
 	w := get(h, "/_nuxt/entry.abc123.js", "gzip, deflate, br")
 	assert.Equal(t, "br", w.Header().Get("Content-Encoding"), "br предпочтительнее")
@@ -68,7 +68,7 @@ func TestAdminEncodings(t *testing.T) {
 }
 
 func TestAdminCacheAndFallback(t *testing.T) {
-	h := newAdminHandler(adminDir(t), "https://api.zorko.test")
+	h := newAdminHandler(adminDir(t), AdminConfig{ApiBaseUrl: "https://api.zorko.test"})
 
 	w := get(h, "/_nuxt/entry.abc123.js", "br")
 	assert.Equal(t, "public, max-age=86400", w.Header().Get("Cache-Control"), "файлы сборки — сутки")
@@ -90,18 +90,26 @@ func TestAdminCacheAndFallback(t *testing.T) {
 }
 
 func TestAdminConfigJs(t *testing.T) {
-	h := newAdminHandler(adminDir(t), `https://api.zorko.test/"x`)
+	h := newAdminHandler(adminDir(t), AdminConfig{ApiBaseUrl: `https://api.zorko.test/"x`, Auth: AdminAuthConfig{Mode: "local"}})
 	w := get(h, "/config.js", "")
-	assert.Equal(t, `window.__APP_CONFIG__ = {"apiBaseUrl":"https://api.zorko.test/\"x"};`+"\n", w.Body.String(), "значение экранировано как JSON")
+	assert.Equal(t, `window.__APP_CONFIG__ = {"apiBaseUrl":"https://api.zorko.test/\"x","auth":{"mode":"local"}};`+"\n", w.Body.String(), "значение экранировано как JSON")
 	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+
+	h = newAdminHandler(adminDir(t), AdminConfig{ApiBaseUrl: "https://api.mdev.kz/zorko", Auth: AdminAuthConfig{
+		Mode:            "proxy",
+		ProxyLoginUrl:   "https://api.mdev.kz/_auth/id/login?redirect={url}",
+		ProxyRefreshUrl: "https://api.mdev.kz/_auth/id/refresh",
+	}})
+	w = get(h, "/config.js", "")
+	assert.Contains(t, w.Body.String(), `"auth":{"mode":"proxy","proxyLoginUrl":"https://api.mdev.kz/_auth/id/login?redirect={url}","proxyRefreshUrl":"https://api.mdev.kz/_auth/id/refresh"}`)
 }
 
 func TestAdminMethodsAndDisabled(t *testing.T) {
-	h := newAdminHandler(adminDir(t), "")
+	h := newAdminHandler(adminDir(t), AdminConfig{})
 	r := httptest.NewRequest(http.MethodPost, "/", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 
-	assert.Nil(t, AdminHttpServerCreate("0", t.TempDir(), ""), "нет сборки — сервера нет")
+	assert.Nil(t, AdminHttpServerCreate("0", t.TempDir(), AdminConfig{}), "нет сборки — сервера нет")
 }

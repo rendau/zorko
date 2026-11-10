@@ -24,7 +24,8 @@ func TestProjectAccess(t *testing.T) {
 	sessions := sessionService.New("test-secret")
 	s := New(sessions, usrFake{
 		1: {Id: 1, Active: true, IsAdmin: true, ProjectIds: []int64{5}},
-		2: {Id: 2, Active: true},
+		2: {Id: 2, Active: true, AllProjects: true},
+		5: {Id: 5, Active: true},
 		3: {Id: 3, Active: true, ProjectIds: []int64{5, 7}},
 		4: {Id: 4, Active: false},
 	})
@@ -41,7 +42,12 @@ func TestProjectAccess(t *testing.T) {
 
 	a, err = s.ProjectAccess(as(2))
 	require.NoError(t, err)
-	assert.True(t, a.All, "пустой список — все проекты")
+	assert.True(t, a.All, "все проекты")
+
+	a, err = s.ProjectAccess(as(5))
+	require.NoError(t, err)
+	assert.False(t, a.All)
+	assert.Empty(t, a.Filter([]int64{1, 5}), "пустой список — ни одного проекта")
 
 	a, err = s.ProjectAccess(as(3))
 	require.NoError(t, err)

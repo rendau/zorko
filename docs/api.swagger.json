@@ -1775,7 +1775,7 @@
         ]
       },
       "post": {
-        "summary": "Create — админ; без входа — только первый человек (он становится админом)",
+        "summary": "Create — админ; без входа — только первый человек (он становится админом). При внешнем входе\n(AUTH_MODE oidc/proxy) пароль и флаг админа не принимаются, первого человека без входа нет.",
         "operationId": "UsrService_Create",
         "responses": {
           "200": {
@@ -3132,6 +3132,9 @@
             "type": "string",
             "format": "int64"
           }
+        },
+        "all_projects": {
+          "type": "boolean"
         }
       }
     },
@@ -3205,7 +3208,15 @@
             "type": "string",
             "format": "int64"
           },
-          "description": "проекты, которые видит участник; пусто — все проекты. Админу не ограничивает."
+          "description": "проекты, которые видит участник (если не all_projects); пусто — ни одного. Админу не ограничивает."
+        },
+        "all_projects": {
+          "type": "boolean",
+          "title": "видит все проекты"
+        },
+        "external": {
+          "type": "boolean",
+          "title": "привязан к внешнему провайдеру входа (ADR-019): логин, имя и флаг админа приходят от него"
         }
       }
     },
@@ -3250,6 +3261,9 @@
         },
         "project_ids": {
           "$ref": "#/definitions/zorko_v1UsrProjectIdList"
+        },
+        "all_projects": {
+          "type": "boolean"
         }
       }
     },

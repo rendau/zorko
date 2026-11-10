@@ -51,6 +51,14 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: '',
+      // способ входа в деве (в проде — /config.js от сервера, ADR-019)
+      authMode: 'local',
+      oidcIssuer: '',
+      oidcClientId: '',
+      oidcScopes: '',
+      authProxyLoginUrl: '',
+      authProxyRefreshUrl: '',
+      authProxyLogoutUrl: '',
     },
   },
 

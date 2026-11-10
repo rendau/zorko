@@ -6,7 +6,10 @@ import type { UsrMain } from '~/types/usr'
 
 // Люди (только админ): добавить со случайным паролем, роль, проекты участника, отключить,
 // сбросить пароль, удалить. «Сохранить и скопировать» кладёт в буфер адрес, логин и пароль.
+// При внешнем входе (ADR-019) пароля нет, роль админа даёт провайдер, а человек заводится сам при
+// первом входе без проектов; заранее заведённый по логину привяжется при входе.
 const { t } = useI18n()
+const external = isExternalAuth()
 const auth = useAuth()
 const toast = useToast()
 const { loading, run } = useApiAction()
@@ -41,11 +44,17 @@ function projectLabel(id: string): string {
   return p ? (p.name || p.slug) : t('users.projects.deleted', { id })
 }
 
-// подпись в таблице: «Все проекты» или имена через запятую
+// подпись в таблице: «Все проекты», «Нет проектов» или имена через запятую
 function projectsSummary(u: UsrMain): string {
-  if (u.is_admin || !u.project_ids?.length)
+  if (u.is_admin || u.all_projects)
     return t('users.projects.all')
+  if (!u.project_ids?.length)
+    return t('users.projects.none')
   return u.project_ids.map(projectLabel).join(', ')
+}
+
+function projectsMuted(u: UsrMain): boolean {
+  return u.is_admin || !!u.all_projects || !u.project_ids?.length
 }
 
 const modal = ref(false)
@@ -58,10 +67,11 @@ const passwordRevealed = ref(false)
 const isAdmin = ref(false)
 const active = ref(true)
 const projectIds = ref<string[]>([])
+const allProjects = ref(false)
 const confirm = ref<UsrMain | null>(null)
 
-// пункты выбора по организациям; проекты, удалённые после назначения, видны отдельно —
-// иначе их тихое исчезновение превратило бы список в «все проекты»
+// пункты выбора по организациям; проекты, удалённые после назначения, видны отдельно — иначе они
+// исчезли бы из списка без следа
 const projectItems = computed<SelectMenuItem[][]>(() => {
   const groups = orgs.value
     .map(o => [
@@ -86,6 +96,7 @@ function openCreate() {
   isAdmin.value = false
   active.value = true
   projectIds.value = []
+  allProjects.value = false
   modal.value = true
 }
 
@@ -98,6 +109,7 @@ function openEdit(u: UsrMain) {
   isAdmin.value = u.is_admin
   active.value = u.active
   projectIds.value = [...(u.project_ids ?? [])]
+  allProjects.value = !!u.all_projects
   modal.value = true
 }
 
@@ -113,16 +125,19 @@ watch(password, (v) => {
 })
 
 const isSelf = computed(() => !!editing.value && editing.value.id === auth.user.value?.id)
-const canSave = computed(() => !!username.value.trim() && (!!editing.value || !!password.value))
+const canSave = computed(() => !!username.value.trim() && (external || !!editing.value || !!password.value))
+// логин привязанного человека приходит от провайдера
+const usernameLocked = computed(() => external && !!editing.value?.external)
 const hasStale = computed(() => projectIds.value.some(id => !projectById.value.has(id)))
 
 async function save(): Promise<boolean> {
   const common = {
     name: name.value.trim(),
-    username: username.value.trim(),
-    is_admin: isAdmin.value,
     active: active.value,
-    ...(password.value ? { password: password.value } : {}),
+    all_projects: allProjects.value,
+    ...(usernameLocked.value ? {} : { username: username.value.trim() }),
+    ...(external ? {} : { is_admin: isAdmin.value }),
+    ...(password.value && !external ? { password: password.value } : {}),
   }
   const ok = await run(async () => {
     if (editing.value)
@@ -201,11 +216,14 @@ async function remove() {
           <tbody class="divide-y divide-default">
             <tr v-for="u in items" :key="u.id" :class="u.active ? '' : 'opacity-60'">
               <td class="px-4 py-2 text-highlighted">{{ u.name }}</td>
-              <td class="px-4 py-2 font-mono text-xs">{{ u.username }}</td>
+              <td class="px-4 py-2 font-mono text-xs">
+                {{ u.username }}
+                <UBadge v-if="u.external" color="neutral" variant="outline" size="sm" class="ms-1 font-sans">{{ t('users.external') }}</UBadge>
+              </td>
               <td class="px-4 py-2">
                 <UBadge :color="u.is_admin ? 'primary' : 'neutral'" variant="subtle" size="sm">{{ u.is_admin ? t('usr.role.admin') : t('usr.role.member') }}</UBadge>
               </td>
-              <td class="max-w-64 truncate px-4 py-2" :class="u.is_admin || !u.project_ids?.length ? 'text-muted' : ''" :title="projectsSummary(u)">
+              <td class="max-w-64 truncate px-4 py-2" :class="projectsMuted(u) ? 'text-muted' : ''" :title="projectsSummary(u)">
                 {{ projectsSummary(u) }}
               </td>
               <td class="px-4 py-2">{{ u.active ? t('users.active') : t('users.disabled') }}</td>
@@ -224,10 +242,15 @@ async function remove() {
             <UFormField :label="t('usr.field.name')">
               <UInput v-model="name" class="w-full" autofocus />
             </UFormField>
-            <UFormField :label="t('usr.field.username')" :hint="t('usr.usernameHint')">
-              <UInput v-model="username" autocomplete="off" class="w-full font-mono" />
+            <UFormField
+              :label="t('usr.field.username')"
+              :hint="external ? undefined : t('usr.usernameHint')"
+              :description="usernameLocked ? t('users.externalUsername') : external && !editing ? t('users.externalPrecreate') : undefined"
+            >
+              <UInput v-model="username" autocomplete="off" class="w-full font-mono" :disabled="usernameLocked" />
             </UFormField>
             <UFormField
+              v-if="!external"
               :label="editing ? t('users.newPassword') : t('users.tempPassword')"
               :hint="t('usr.passwordHint')"
               :description="password ? t('users.copy.hint') : undefined"
@@ -243,22 +266,25 @@ async function remove() {
                 <UButton color="neutral" variant="outline" icon="i-lucide-dices" :label="t('users.generate')" @click="fillGeneratedPassword" />
               </UFieldGroup>
             </UFormField>
-            <UFormField :label="t('usr.role.admin')" :description="isSelf ? t('users.selfHint') : t('users.adminHint')">
-              <USwitch v-model="isAdmin" :disabled="isSelf" />
+            <UFormField :label="t('usr.role.admin')" :description="external ? t('users.externalAdmin') : isSelf ? t('users.selfHint') : t('users.adminHint')">
+              <USwitch v-model="isAdmin" :disabled="isSelf || external" />
+            </UFormField>
+            <UFormField :label="t('users.projects.all')" :description="isAdmin ? t('users.projects.adminHint') : t('users.projects.allHint')">
+              <USwitch v-model="allProjects" :disabled="isAdmin" />
             </UFormField>
             <UFormField
               :label="t('users.projects.title')"
-              :description="isAdmin ? t('users.projects.adminHint') : t('users.projects.hint')"
-              :error="!isAdmin && hasStale ? t('users.projects.staleHint') : undefined"
+              :description="isAdmin || allProjects ? undefined : t('users.projects.hint')"
+              :error="!isAdmin && !allProjects && hasStale ? t('users.projects.staleHint') : undefined"
             >
               <USelectMenu
                 v-model="projectIds"
                 :items="projectItems"
                 value-key="value"
                 multiple
-                :disabled="isAdmin"
+                :disabled="isAdmin || allProjects"
                 icon="i-lucide-folder"
-                :placeholder="t('users.projects.all')"
+                :placeholder="isAdmin || allProjects ? t('users.projects.all') : t('users.projects.none')"
                 class="w-full"
               />
             </UFormField>

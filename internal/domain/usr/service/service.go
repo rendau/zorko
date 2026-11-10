@@ -39,13 +39,32 @@ func (s *Service) Get(ctx context.Context, id int64, errNE bool) (*model.Main, b
 	return result, true, nil
 }
 
+// GetByUsername — человек по логину (без проверки пароля)
+func (s *Service) GetByUsername(ctx context.Context, username string) (*model.Main, bool, error) {
+	result, found, err := s.repoDb.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, false, fmt.Errorf("repoDb.GetByUsername: %w", err)
+	}
+	return result, found, nil
+}
+
+// GetByExtSub — человек по id у внешнего провайдера входа (ADR-019)
+func (s *Service) GetByExtSub(ctx context.Context, extSub string) (*model.Main, bool, error) {
+	result, found, err := s.repoDb.GetByExtSub(ctx, extSub)
+	if err != nil {
+		return nil, false, fmt.Errorf("repoDb.GetByExtSub: %w", err)
+	}
+	return result, found, nil
+}
+
 // AuthByUsernamePassword — человек по логину и паролю; неверная пара — found = false
 func (s *Service) AuthByUsernamePassword(ctx context.Context, username, password string) (*model.Main, bool, error) {
 	result, found, err := s.repoDb.GetByUsername(ctx, username)
 	if err != nil {
 		return nil, false, fmt.Errorf("repoDb.GetByUsername: %w", err)
 	}
-	if !found {
+	// у внешней учётки пароля нет: по паролю она не входит
+	if !found || result.Password == "" {
 		return nil, false, nil
 	}
 

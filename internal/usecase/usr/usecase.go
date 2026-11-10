@@ -23,19 +23,29 @@ const (
 
 var usernameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{2,63}$`)
 
+// externalUsernameMaxLen — логин внешнего провайдера бывает почтой или номером телефона: формат
+// не проверяется, только длина
+const externalUsernameMaxLen = 254
+
 type Usecase struct {
 	svc          ServiceI
 	sessionSvc   SessionServiceI
 	loginLimiter LoginLimiterI
 	projectSvc   ProjectServiceI
+	// externalAuth — вход через внешний провайдер (AUTH_MODE oidc/proxy, ADR-019): вход по паролю
+	// и первый админ выключены, пароль, логин привязанного человека и флаг админа — у провайдера
+	externalAuth bool
 }
 
-func New(svc ServiceI, sessionSvc SessionServiceI, loginLimiter LoginLimiterI, projectSvc ProjectServiceI) *Usecase {
-	return &Usecase{svc: svc, sessionSvc: sessionSvc, loginLimiter: loginLimiter, projectSvc: projectSvc}
+func New(svc ServiceI, sessionSvc SessionServiceI, loginLimiter LoginLimiterI, projectSvc ProjectServiceI, externalAuth bool) *Usecase {
+	return &Usecase{svc: svc, sessionSvc: sessionSvc, loginLimiter: loginLimiter, projectSvc: projectSvc, externalAuth: externalAuth}
 }
 
 // Login — пара токенов. Не больше 5 неудачных попыток в минуту на логин и на IP.
 func (u *Usecase) Login(ctx context.Context, username, password, clientIp string) (*TokenPair, error) {
+	if u.externalAuth {
+		return nil, errs.AuthExternal
+	}
 	username = normalizeUsername(username)
 	keys := []string{"usr:" + username, "ip:" + clientIp}
 
@@ -62,6 +72,9 @@ func (u *Usecase) Login(ctx context.Context, username, password, clientIp string
 // RefreshToken — новая пара по refresh-токену. Человек перечитывается из БД: отключение и смена
 // роли действуют при ближайшем обновлении, смена пароля отзывает старые refresh-токены.
 func (u *Usecase) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error) {
+	if u.externalAuth {
+		return nil, errs.AuthExternal
+	}
 	refreshToken = strings.TrimSpace(refreshToken)
 	if refreshToken == "" {
 		return nil, errs.NotAuthorized
@@ -87,8 +100,12 @@ func (u *Usecase) RefreshToken(ctx context.Context, refreshToken string) (*Token
 	return u.issueTokenPair(item)
 }
 
-// BootstrapStatus — true, пока нет ни одного человека (можно создать первого админа без входа)
+// BootstrapStatus — true, пока нет ни одного человека (можно создать первого админа без входа).
+// При внешнем входе первого админа даёт роль у провайдера — всегда false.
 func (u *Usecase) BootstrapStatus(ctx context.Context) (bool, error) {
+	if u.externalAuth {
+		return false, nil
+	}
 	hasAny, err := u.svc.HasAny(ctx)
 	if err != nil {
 		return false, fmt.Errorf("svc.HasAny: %w", err)
@@ -110,6 +127,9 @@ func (u *Usecase) GetProfile(ctx context.Context) (*model.Main, error) {
 func (u *Usecase) UpdateProfile(ctx context.Context, req *UpdateProfileReq) error {
 	if !u.sessionSvc.CtxIsAuthorized(ctx) {
 		return errs.NotAuthorized
+	}
+	if u.externalAuth {
+		return errs.AuthExternal // имя, логин и пароль — у провайдера входа
 	}
 	id := u.sessionSvc.FromContext(ctx).Id
 
@@ -166,13 +186,17 @@ func (u *Usecase) Get(ctx context.Context, id int64) (*model.Main, error) {
 	return result, nil
 }
 
-// Create — админ; без входа — только первый человек, и он становится админом
+// Create — админ; без входа — только первый человек, и он становится админом. При внешнем входе
+// админ заводит человека заранее (логин, имя, проекты) — при первом входе он привяжется по логину;
+// пароля нет, флаг админа даёт провайдер.
 func (u *Usecase) Create(ctx context.Context, obj *model.Edit) (int64, error) {
 	session := u.sessionSvc.FromContext(ctx)
 	if session.IsAuthorized() {
 		if !session.IsAdmin() {
 			return 0, errs.NoPermission
 		}
+	} else if u.externalAuth {
+		return 0, errs.NotAuthorized
 	} else {
 		hasAny, err := u.svc.HasAny(ctx)
 		if err != nil {
@@ -185,6 +209,10 @@ func (u *Usecase) Create(ctx context.Context, obj *model.Edit) (int64, error) {
 		obj.Active = new(true)
 	}
 
+	if u.externalAuth {
+		obj.Password, obj.IsAdmin = nil, nil
+	}
+	obj.ExtSub = nil
 	if err := u.validateEdit(obj, true); err != nil {
 		return 0, err
 	}
@@ -206,6 +234,20 @@ func (u *Usecase) Update(ctx context.Context, id int64, obj *model.Edit) error {
 	}
 	if id == 0 {
 		return errs.IdRequired
+	}
+	obj.ExtSub = nil
+	if u.externalAuth {
+		obj.Password, obj.IsAdmin = nil, nil
+		if obj.Username != nil {
+			// логин привязанного человека приходит от провайдера; заведённому заранее — можно поправить
+			item, _, err := u.svc.Get(ctx, id, true)
+			if err != nil {
+				return fmt.Errorf("svc.Get: %w", err)
+			}
+			if item.ExtSub != "" {
+				obj.Username = nil
+			}
+		}
 	}
 	if id == u.sessionSvc.FromContext(ctx).Id &&
 		((obj.Active != nil && !*obj.Active) || (obj.IsAdmin != nil && !*obj.IsAdmin)) {
@@ -256,11 +298,15 @@ func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
 		obj.Username = new(normalizeUsername(*obj.Username))
 	}
 	if forCreate || obj.Username != nil {
-		if obj.Username == nil || !usernameRe.MatchString(*obj.Username) {
+		if u.externalAuth {
+			if obj.Username == nil || *obj.Username == "" || len(*obj.Username) > externalUsernameMaxLen {
+				return errs.ErrFull{Err: errs.InvalidRequest, Desc: "username: 1–254 chars", Fields: map[string]string{"username": "invalid"}}
+			}
+		} else if obj.Username == nil || !usernameRe.MatchString(*obj.Username) {
 			return errs.ErrFull{Err: errs.InvalidRequest, Desc: "username: a-z, 0-9, '.', '_', '-', 3–64 chars", Fields: map[string]string{"username": "invalid"}}
 		}
 	}
-	if forCreate || obj.Password != nil {
+	if (forCreate && !u.externalAuth) || obj.Password != nil {
 		if obj.Password == nil {
 			return errs.ErrFull{Err: errs.InvalidRequest, Desc: "password is required", Fields: map[string]string{"password": "required"}}
 		}
@@ -272,8 +318,8 @@ func (u *Usecase) validateEdit(obj *model.Edit, forCreate bool) error {
 	return nil
 }
 
-// normalizeProjectIds — без повторов и удалённых проектов. Если выбранные проекты все удалены,
-// пустой список не сохраняется: он значил бы «все проекты».
+// normalizeProjectIds — без повторов и удалённых проектов (пустой список — ни одного проекта;
+// все проекты — AllProjects)
 func (u *Usecase) normalizeProjectIds(ctx context.Context, obj *model.Edit) error {
 	if obj.ProjectIds == nil {
 		return nil
@@ -286,9 +332,6 @@ func (u *Usecase) normalizeProjectIds(ctx context.Context, obj *model.Edit) erro
 		}
 		existing := lo.Map(projects, func(p *projectModel.Main, _ int) int64 { return p.Id })
 		ids = lo.Filter(ids, func(id int64, _ int) bool { return slices.Contains(existing, id) })
-		if len(ids) == 0 {
-			return errs.ErrFull{Err: errs.ProjectNotFound, Desc: "project_ids: selected projects no longer exist", Fields: map[string]string{"project_ids": "invalid"}}
-		}
 	}
 	obj.ProjectIds = &ids
 	return nil

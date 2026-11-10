@@ -18,8 +18,30 @@ var Conf = struct {
 	HttpPort string `env:"HTTP_PORT" envDefault:"80"`
 	HttpCors bool   `env:"HTTP_CORS" envDefault:"false"`
 
-	// подпись токенов входа (HS256, ADR-005)
+	// подпись токенов входа (HS256, ADR-005); нужен только при AUTH_MODE=local
 	JwtSecret string `env:"JWT_SECRET"`
+
+	// способ входа в интерфейс (ADR-019): local — свои учётки; oidc — внешний OpenID-провайдер,
+	// подпись токена проверяется; proxy — доверенный шлюз перед zorko, подпись не проверяется
+	// (API zorko не должен быть доступен в обход шлюза)
+	AuthMode string `env:"AUTH_MODE" envDefault:"local"`
+	// роль админа в токене: "клиент:роль" — в resource_access.<клиент>.roles, просто "роль" — в
+	// roles, role, realm_access.roles и у любого клиента; пусто — админов из токена нет
+	AuthAdminRole string `env:"AUTH_ADMIN_ROLE"`
+	// путь к ролям в токене через точку (groups, realm_access.roles); пусто — поиск по правилу выше
+	AuthRolesClaim string `env:"AUTH_ROLES_CLAIM"`
+	// claim с логином; пусто — preferred_username, затем email
+	AuthUsernameClaim string `env:"AUTH_USERNAME_CLAIM"`
+	// oidc: адрес провайдера (issuer, он же iss в токене) и клиент интерфейса (public, PKCE)
+	OidcIssuer   string `env:"OIDC_ISSUER"`
+	OidcClientId string `env:"OIDC_CLIENT_ID"`
+	OidcScopes   string `env:"OIDC_SCOPES" envDefault:"openid profile email"`
+	// oidc: ожидаемый aud токена; пусто — не проверяется
+	OidcAudience string `env:"OIDC_AUDIENCE"`
+	// proxy: адреса входа, продления и выхода шлюза; {url} заменяется адресом возврата
+	AuthProxyLoginUrl   string `env:"AUTH_PROXY_LOGIN_URL"`
+	AuthProxyRefreshUrl string `env:"AUTH_PROXY_REFRESH_URL"`
+	AuthProxyLogoutUrl  string `env:"AUTH_PROXY_LOGOUT_URL"`
 
 	PgDsn string `env:"PG_DSN"`
 	ChDsn string `env:"CH_DSN"`

@@ -18,7 +18,8 @@
     "save": "Save",
     "saved": "Saved",
     "show": "Show",
-    "byteUnits": "B,KB,MB,GB"
+    "byteUnits": "B,KB,MB,GB",
+    "close": "Close"
   },
   "nav": {
     "issues": "Issues",
@@ -34,7 +35,15 @@
   },
   "login": {
     "title": "Sign in to zorko",
-    "submit": "Sign in"
+    "submit": "Sign in",
+    "external": "Sign in with SSO",
+    "externalHint": "Sign in with your company account.",
+    "disabled": "Your zorko account is disabled. Contact an administrator.",
+    "accessDenied": "The identity provider did not let you into zorko: you have no access to it. Contact an administrator.",
+    "failed": "Sign-in failed ({code}). Please try again.",
+    "callback": "Finishing sign-in…",
+    "callbackFailed": "Sign-in failed",
+    "retry": "Try again"
   },
   "setup": {
     "title": "First run",
@@ -45,7 +54,8 @@
     "title": "Profile",
     "currentPassword": "Current password",
     "newPassword": "New password",
-    "saved": "Profile saved"
+    "saved": "Profile saved",
+    "external": "Name, username and password are managed in your company account, not in zorko."
   },
   "usr": {
     "field": {
@@ -107,6 +117,10 @@
       "connect": "Connect a project",
       "noOrg": "There are no organizations yet",
       "toSettings": "Go to projects"
+    },
+    "noProjects": {
+      "title": "No projects yet",
+      "description": "Ask a zorko administrator to give you the projects you need in “People”."
     }
   },
   "issue": {
@@ -375,10 +389,12 @@
     "projects": {
       "title": "Projects",
       "all": "All projects",
-      "hint": "A member sees only the selected projects and their organizations. Empty — all projects.",
+      "hint": "A member sees only the selected projects and their organizations. Empty — none.",
       "adminHint": "An administrator always sees all projects",
       "deleted": "Deleted project #{id}",
-      "staleHint": "Some selected projects were deleted — remove them from the list"
+      "staleHint": "Some selected projects were deleted — remove them from the list",
+      "none": "No projects",
+      "allHint": "Sees every project, including new ones"
     },
     "copy": {
       "button": "Save & copy",
@@ -388,7 +404,11 @@
       "password": "Password: {password}",
       "done": "Sign-in details copied",
       "failed": "Clipboard unavailable, nothing saved. Use “Save” and copy the password manually."
-    }
+    },
+    "external": "SSO",
+    "externalUsername": "The username comes from the identity provider",
+    "externalPrecreate": "Use the identity provider username: on first sign-in the person is linked to this entry and gets the selected projects",
+    "externalAdmin": "The administrator role is granted in the identity provider"
   },
   "apiError": {
     "not_authorized": "Wrong username or password, or the session has expired",
@@ -411,7 +431,9 @@
     "bundle_invalid": "Broken source map bundle",
     "release_not_found": "Release not found",
     "replay_disabled": "Session replay is unavailable: S3 storage is not configured on the server",
-    "replay_not_found": "Replay not found"
+    "replay_not_found": "Replay not found",
+    "auth_external": "Signed in via the identity provider: name, username and password are managed there",
+    "usr_disabled": "The zorko account is disabled"
   },
   "sourcemap": {
     "notResolved": "not resolved",

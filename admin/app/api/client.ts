@@ -6,7 +6,9 @@ import type { TokenPair } from '~/types/usr'
 // - query: вложенные объекты — через точку (list_params.page_size=50), массивы — повтором ключа,
 //   undefined не отправляется; page — с 0;
 // - ошибки — телом ErrorRep { code, message, fields }; 401 — нужен вход, 403 — нет прав;
-// - access-токен живёт 15 минут: при 401 один раз меняем refresh на новую пару и повторяем запрос.
+// - вход по AUTH_MODE (ADR-019): local — свой access-токен (15 минут, при 401 один раз меняем refresh
+//   на новую пару и повторяем запрос); oidc — access-токен провайдера, при 401 — продление по его
+//   refresh; proxy — куки шлюза, при 401 — POST на адрес продления шлюза. Не вышло — на /login.
 
 export type QueryValue = string | number | boolean | undefined | null
 export type QueryParams = Record<string, QueryValue | QueryValue[] | Record<string, QueryValue | QueryValue[]>>
@@ -18,6 +20,8 @@ export interface ApiRequestOptions {
   signal?: AbortSignal
   // arrayBuffer — бинарное тело (сегменты записей сессий); по умолчанию — JSON
   responseType?: 'json' | 'arrayBuffer'
+  // authRedirect: false — при негодном входе не уводить на /login (проверка «кто вошёл»)
+  authRedirect?: boolean
 }
 
 const AUTH_PATHS = ['/usr/login', '/usr/token/refresh']
@@ -85,6 +89,12 @@ function isUnauthorized(error: unknown): boolean {
 let refreshing: Promise<boolean> | null = null
 
 async function refreshTokens(): Promise<boolean> {
+  const mode = useAuthConfig().mode
+  if (mode === 'oidc')
+    return oidcRenew()
+  if (mode === 'proxy')
+    return proxyRefresh()
+
   const refresh = getStoredRefresh()
   if (!refresh)
     return false
@@ -101,8 +111,14 @@ async function refreshTokens(): Promise<boolean> {
   return refreshing
 }
 
-function request<T>(path: string, options: ApiRequestOptions): Promise<T> {
-  const jwt = getStoredJwt()
+async function authHeaders(): Promise<Record<string, string>> {
+  const mode = useAuthConfig().mode
+  const token = mode === 'oidc' ? await oidcAccessToken() : mode === 'local' ? getStoredJwt() : ''
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function request<T>(path: string, options: ApiRequestOptions): Promise<T> {
+  const auth = await authHeaders()
   const binary = options.responseType === 'arrayBuffer'
   return $fetch<T>(path, {
     baseURL: useApiBaseUrl(),
@@ -111,7 +127,9 @@ function request<T>(path: string, options: ApiRequestOptions): Promise<T> {
     body: options.body as Record<string, unknown> | undefined,
     signal: options.signal,
     responseType: binary ? 'arrayBuffer' : 'json',
-    headers: { Accept: binary ? 'application/octet-stream' : 'application/json', ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}) },
+    // proxy: вход — куки шлюза
+    credentials: useAuthConfig().mode === 'proxy' ? 'include' : undefined,
+    headers: { Accept: binary ? 'application/octet-stream' : 'application/json', ...auth },
   })
 }
 
@@ -126,8 +144,16 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     if (await refreshTokens())
       return await request<T>(path, options)
 
-    clearTokens()
-    await navigateTo({ path: '/login', query: { redirect: useRoute().fullPath } })
+    await forgetLogin()
+    if (options.authRedirect !== false)
+      await navigateTo({ path: '/login', query: { redirect: useRoute().fullPath } })
     throw error
   }
+}
+
+// forgetLogin — вход больше не годен: свои токены и токены провайдера забываются (куки шлюза — его дело)
+export async function forgetLogin() {
+  clearTokens()
+  if (useAuthConfig().mode === 'oidc')
+    await oidcManager().removeUser().catch(() => {})
 }

@@ -34,8 +34,12 @@ type UsrMain struct {
 	IsAdmin    bool                   `protobuf:"varint,5,opt,name=is_admin,json=isAdmin,proto3" json:"is_admin,omitempty"`
 	Name       string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 	Username   string                 `protobuf:"bytes,7,opt,name=username,proto3" json:"username,omitempty"`
-	// проекты, которые видит участник; пусто — все проекты. Админу не ограничивает.
-	ProjectIds    []int64 `protobuf:"varint,8,rep,packed,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
+	// проекты, которые видит участник (если не all_projects); пусто — ни одного. Админу не ограничивает.
+	ProjectIds []int64 `protobuf:"varint,8,rep,packed,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
+	// видит все проекты
+	AllProjects bool `protobuf:"varint,9,opt,name=all_projects,json=allProjects,proto3" json:"all_projects,omitempty"`
+	// привязан к внешнему провайдеру входа (ADR-019): логин, имя и флаг админа приходят от него
+	External      bool `protobuf:"varint,10,opt,name=external,proto3" json:"external,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -124,6 +128,20 @@ func (x *UsrMain) GetProjectIds() []int64 {
 		return x.ProjectIds
 	}
 	return nil
+}
+
+func (x *UsrMain) GetAllProjects() bool {
+	if x != nil {
+		return x.AllProjects
+	}
+	return false
+}
+
+func (x *UsrMain) GetExternal() bool {
+	if x != nil {
+		return x.External
+	}
+	return false
 }
 
 // UsrProjectIdList — обёртка списка проектов: не передан — список не меняется
@@ -335,6 +353,7 @@ type UsrCreateReq struct {
 	Username      *string                `protobuf:"bytes,4,opt,name=username,proto3,oneof" json:"username,omitempty"`
 	Password      *string                `protobuf:"bytes,5,opt,name=password,proto3,oneof" json:"password,omitempty"`
 	ProjectIds    []int64                `protobuf:"varint,6,rep,packed,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
+	AllProjects   *bool                  `protobuf:"varint,7,opt,name=all_projects,json=allProjects,proto3,oneof" json:"all_projects,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -411,6 +430,13 @@ func (x *UsrCreateReq) GetProjectIds() []int64 {
 	return nil
 }
 
+func (x *UsrCreateReq) GetAllProjects() bool {
+	if x != nil && x.AllProjects != nil {
+		return *x.AllProjects
+	}
+	return false
+}
+
 type UsrCreateRep struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -464,6 +490,7 @@ type UsrUpdateReq struct {
 	Username      *string                `protobuf:"bytes,5,opt,name=username,proto3,oneof" json:"username,omitempty"`
 	Password      *string                `protobuf:"bytes,6,opt,name=password,proto3,oneof" json:"password,omitempty"`
 	ProjectIds    *UsrProjectIdList      `protobuf:"bytes,7,opt,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
+	AllProjects   *bool                  `protobuf:"varint,8,opt,name=all_projects,json=allProjects,proto3,oneof" json:"all_projects,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -545,6 +572,13 @@ func (x *UsrUpdateReq) GetProjectIds() *UsrProjectIdList {
 		return x.ProjectIds
 	}
 	return nil
+}
+
+func (x *UsrUpdateReq) GetAllProjects() bool {
+	if x != nil && x.AllProjects != nil {
+		return *x.AllProjects
+	}
+	return false
 }
 
 type UsrLoginReq struct {
@@ -811,7 +845,7 @@ var File_zorko_v1_usr_proto protoreflect.FileDescriptor
 
 const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\n" +
-	"\x12zorko_v1/usr.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\x95\x02\n" +
+	"\x12zorko_v1/usr.proto\x12\bzorko_v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x13common/common.proto\"\xd4\x02\n" +
 	"\aUsrMain\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x129\n" +
 	"\n" +
@@ -823,7 +857,10 @@ const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12\x1a\n" +
 	"\busername\x18\a \x01(\tR\busername\x12\x1f\n" +
 	"\vproject_ids\x18\b \x03(\x03R\n" +
-	"projectIds\"*\n" +
+	"projectIds\x12!\n" +
+	"\fall_projects\x18\t \x01(\bR\vallProjects\x12\x1a\n" +
+	"\bexternal\x18\n" +
+	" \x01(\bR\bexternal\"*\n" +
 	"\x10UsrProjectIdList\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\x03R\x06values\"}\n" +
 	"\n" +
@@ -838,7 +875,7 @@ const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\x0fpagination_info\x18\x01 \x01(\v2\x18.common.PaginationInfoStR\x0epaginationInfo\x12+\n" +
 	"\aresults\x18\x02 \x03(\v2\x11.zorko_v1.UsrMainR\aresults\"\x1b\n" +
 	"\tUsrGetReq\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x82\x02\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xbb\x02\n" +
 	"\fUsrCreateReq\x12\x1b\n" +
 	"\x06active\x18\x01 \x01(\bH\x00R\x06active\x88\x01\x01\x12\x1e\n" +
 	"\bis_admin\x18\x02 \x01(\bH\x01R\aisAdmin\x88\x01\x01\x12\x17\n" +
@@ -846,14 +883,16 @@ const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\busername\x18\x04 \x01(\tH\x03R\busername\x88\x01\x01\x12\x1f\n" +
 	"\bpassword\x18\x05 \x01(\tH\x04R\bpassword\x88\x01\x01\x12\x1f\n" +
 	"\vproject_ids\x18\x06 \x03(\x03R\n" +
-	"projectIdsB\t\n" +
+	"projectIds\x12&\n" +
+	"\fall_projects\x18\a \x01(\bH\x05R\vallProjects\x88\x01\x01B\t\n" +
 	"\a_activeB\v\n" +
 	"\t_is_adminB\a\n" +
 	"\x05_nameB\v\n" +
 	"\t_usernameB\v\n" +
-	"\t_password\"\x1e\n" +
+	"\t_passwordB\x0f\n" +
+	"\r_all_projects\"\x1e\n" +
 	"\fUsrCreateRep\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\xae\x02\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\xe7\x02\n" +
 	"\fUsrUpdateReq\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1b\n" +
 	"\x06active\x18\x02 \x01(\bH\x00R\x06active\x88\x01\x01\x12\x1e\n" +
@@ -862,12 +901,14 @@ const file_zorko_v1_usr_proto_rawDesc = "" +
 	"\busername\x18\x05 \x01(\tH\x03R\busername\x88\x01\x01\x12\x1f\n" +
 	"\bpassword\x18\x06 \x01(\tH\x04R\bpassword\x88\x01\x01\x12;\n" +
 	"\vproject_ids\x18\a \x01(\v2\x1a.zorko_v1.UsrProjectIdListR\n" +
-	"projectIdsB\t\n" +
+	"projectIds\x12&\n" +
+	"\fall_projects\x18\b \x01(\bH\x05R\vallProjects\x88\x01\x01B\t\n" +
 	"\a_activeB\v\n" +
 	"\t_is_adminB\a\n" +
 	"\x05_nameB\v\n" +
 	"\t_usernameB\v\n" +
-	"\t_password\"E\n" +
+	"\t_passwordB\x0f\n" +
+	"\r_all_projects\"E\n" +
 	"\vUsrLoginReq\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"D\n" +

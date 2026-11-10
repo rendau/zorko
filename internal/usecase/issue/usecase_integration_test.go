@@ -47,10 +47,11 @@ func TestList(t *testing.T) {
 
 	// люди: участник без списка (все проекты) и участник с чужим проектом
 	otherProjectId := testutil.NewProject(t, pool)
+	// пустой список с allProjects — все проекты; без него — ни одного (ADR-019)
 	newUsr := func(projectIds []int64) int64 {
 		var id int64
-		require.NoError(t, pool.QueryRow(ctx, `insert into usr (username, project_ids) values ($1, $2) returning id`,
-			"u-"+uuid.NewString(), projectIds).Scan(&id))
+		require.NoError(t, pool.QueryRow(ctx, `insert into usr (username, project_ids, all_projects) values ($1, $2, $3) returning id`,
+			"u-"+uuid.NewString(), projectIds, len(projectIds) == 0).Scan(&id))
 		t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `delete from usr where id = $1`, id) })
 		return id
 	}

@@ -5,6 +5,7 @@ import type { IssueListItem, IssueSort, Period } from '~/types/issue'
 // Список проблем (как Issues в Sentry): фильтры и поиск — в адресе страницы, ссылку можно переслать
 const { t } = useI18n()
 const org = useOrg()
+const auth = useAuth()
 
 const PAGE_SIZE = 25
 const { state: filters, reset, dirty } = useQueryFilters({
@@ -134,12 +135,20 @@ const page = computed({
         <UAlert v-if="truncated" color="warning" variant="subtle" icon="i-lucide-triangle-alert" :description="t('issues.truncated')" />
 
         <EmptyState
-          v-if="!org.orgs.value.length && !loading"
+          v-if="!org.orgs.value.length && !loading && auth.isAdmin.value"
           icon="i-lucide-building-2"
           :title="t('issues.empty.noOrg')"
         >
           <UButton to="/settings" :label="t('issues.empty.toSettings')" variant="soft" />
         </EmptyState>
+
+        <!-- участник без проектов (так заводится человек при внешнем входе, ADR-019) -->
+        <EmptyState
+          v-else-if="!org.orgs.value.length && !loading"
+          icon="i-lucide-folder-lock"
+          :title="t('issues.noProjects.title')"
+          :description="t('issues.noProjects.description')"
+        />
 
         <EmptyState
           v-else-if="!items.length && !loading && !error"
