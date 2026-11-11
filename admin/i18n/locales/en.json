@@ -502,6 +502,13 @@
       "filtered": "Nothing matches the filter",
       "toSettings": "To projects"
     },
+    "network": {
+      "toggle": "Request headers",
+      "request": "Request",
+      "response": "Response",
+      "none": "no headers",
+      "hint": "No headers: the site sends them only for URLs listed in networkDetailAllowUrls in its replay settings. Ready-made code is in the project's setup examples."
+    },
     "notArrived": {
       "title": "The replay did not arrive",
       "mode": "Replays are off in the project, or the mode is “on error only” and the site sent a regular session.",

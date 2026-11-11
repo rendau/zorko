@@ -1,6 +1,8 @@
 // Записи сессий (ADR-015): распаковка сегментов и разбор служебных событий SDK для вкладок проигрывателя.
 // Сегмент — JSON-массив событий rrweb, сжатый zlib; SDK Sentry кладёт в него и свои события
 // (type 5): breadcrumb — клики, переходы, консоль; performanceSpan — запросы к серверу.
+// Заголовки запроса и ответа SDK кладёт в performanceSpan только для адресов из
+// networkDetailAllowUrls (настройка replayIntegration на сайте), для остальных — один размер тела.
 
 export interface RrwebEvent {
   type: number
@@ -50,6 +52,13 @@ function normalizeTimestamp(e: RrwebEvent): RrwebEvent {
 
 export type ReplayItemKind = 'console' | 'network' | 'click' | 'navigation' | 'input' | 'other'
 
+// ReplayNetworkPart — половина запроса (отправленное или ответ) так, как её прислал сайт.
+// Тела SDK тоже умеет слать (networkCaptureBodies) — их не показываем
+export interface ReplayNetworkPart {
+  headers: [string, string][] // имена в нижнем регистре (так пишет SDK), по алфавиту
+  size: number // размер тела, байт; 0 — тела нет или размер неизвестен
+}
+
 export interface ReplayItem {
   kind: ReplayItemKind
   at: number // время, мс Unix
@@ -59,6 +68,8 @@ export interface ReplayItem {
   status: number // для запросов: код ответа, 0 — нет
   method: string
   durationMs: number
+  request: ReplayNetworkPart | null // для запросов; null — сайт не прислал ничего
+  response: ReplayNetworkPart | null
 }
 
 function seconds(v: unknown): number {
@@ -68,7 +79,7 @@ function seconds(v: unknown): number {
 function breadcrumbItem(at: number, p: Json): ReplayItem | null {
   const category = str(p.category)
   const data = isObject(p.data) ? p.data : {}
-  const base = { at: seconds(p.timestamp) || at, detail: '', level: str(p.level) || 'info', status: 0, method: '', durationMs: 0 }
+  const base = { at: seconds(p.timestamp) || at, detail: '', level: str(p.level) || 'info', status: 0, method: '', durationMs: 0, request: null, response: null }
   switch (category) {
     case 'console': {
       const args = Array.isArray(data.arguments) ? data.arguments.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') : ''
@@ -90,6 +101,18 @@ function breadcrumbItem(at: number, p: Json): ReplayItem | null {
   }
 }
 
+function networkPart(v: unknown): ReplayNetworkPart | null {
+  if (!isObject(v))
+    return null
+  const headers = isObject(v.headers)
+    ? Object.entries(v.headers)
+        .map(([k, value]): [string, string] => [k, str(value)])
+        .filter(([, value]) => value !== '')
+        .sort(([a], [b]) => a.localeCompare(b))
+    : []
+  return { headers, size: Number(v.size) || 0 }
+}
+
 function spanItem(at: number, p: Json): ReplayItem | null {
   const op = str(p.op)
   if (op !== 'resource.fetch' && op !== 'resource.xhr')
@@ -105,6 +128,8 @@ function spanItem(at: number, p: Json): ReplayItem | null {
     status: Number(data.statusCode) || 0,
     method: str(data.method) || 'GET',
     durationMs: Math.max(seconds(p.endTimestamp) - start, 0),
+    request: networkPart(data.request),
+    response: networkPart(data.response),
   }
 }
 

@@ -3,7 +3,8 @@ import type { ReplayItem } from '~/utils/replay'
 import type { ReplayErrorMark } from '~/types/replay'
 
 // Вкладки рядом с проигрывателем: ошибки, консоль, запросы, действия. Щелчок по строке — переход
-// к этому моменту записи; строки, ещё не наступившие на шкале, приглушены.
+// к этому моменту записи; строки, ещё не наступившие на шкале, приглушены. Запрос раскрывается
+// стрелкой: заголовки запроса и ответа, если сайт их прислал (networkDetailAllowUrls).
 const props = defineProps<{
   items: ReplayItem[]
   errors: ReplayErrorMark[]
@@ -48,6 +49,29 @@ function statusColor(status: number): 'error' | 'warning' | 'success' | 'neutral
   return status >= 500 ? 'error' : status >= 400 ? 'warning' : 'success'
 }
 
+// Раскрытый запрос — по времени и адресу, а не по номеру строки: пока запись догружается,
+// строки сдвигаются
+const openRequest = ref('')
+
+function requestKey(n: ReplayItem): string {
+  return `${n.at} ${n.method} ${n.title}`
+}
+
+function toggleRequest(n: ReplayItem) {
+  openRequest.value = openRequest.value === requestKey(n) ? '' : requestKey(n)
+}
+
+function hasHeaders(n: ReplayItem): boolean {
+  return !!(n.request?.headers.length || n.response?.headers.length)
+}
+
+function requestParts(n: ReplayItem) {
+  return [
+    { key: 'request', label: t('replay.network.request'), headers: n.request?.headers ?? [], size: n.request?.size ?? 0 },
+    { key: 'response', label: t('replay.network.response'), headers: n.response?.headers ?? [], size: n.response?.size ?? 0 },
+  ]
+}
+
 const ACTION_ICON: Record<string, string> = {
   click: 'i-lucide-mouse-pointer-click',
   navigation: 'i-lucide-navigation',
@@ -82,14 +106,46 @@ const ACTION_ICON: Record<string, string> = {
       </ul>
 
       <ul v-else-if="tab === 'network'" class="divide-y divide-default">
-        <li v-for="(n, i) in networkItems" :key="i" class="cursor-pointer px-3 py-2 hover:bg-elevated/50" :class="{ 'opacity-50': future(n.at) }" @click="emit('seek', offset(n.at))">
-          <div class="flex items-center gap-2">
-            <span class="shrink-0 font-mono tabular-nums text-muted">{{ formatOffset(offset(n.at)) }}</span>
-            <span class="font-mono font-medium">{{ n.method }}</span>
-            <UBadge :color="statusColor(n.status)" variant="subtle" size="sm">{{ n.status || '—' }}</UBadge>
-            <span class="ms-auto tabular-nums text-muted">{{ t('replay.ms', { n: formatNumber(n.durationMs) }) }}</span>
+        <li v-for="(n, i) in networkItems" :key="i">
+          <div class="cursor-pointer px-3 py-2 hover:bg-elevated/50" :class="{ 'opacity-50': future(n.at) }" @click="emit('seek', offset(n.at))">
+            <div class="flex items-center gap-2">
+              <span class="shrink-0 font-mono tabular-nums text-muted">{{ formatOffset(offset(n.at)) }}</span>
+              <span class="font-mono font-medium">{{ n.method }}</span>
+              <UBadge :color="statusColor(n.status)" variant="subtle" size="sm">{{ n.status || '—' }}</UBadge>
+              <span class="ms-auto tabular-nums text-muted">{{ t('replay.ms', { n: formatNumber(n.durationMs) }) }}</span>
+              <UButton
+                :icon="openRequest === requestKey(n) ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :aria-label="t('replay.network.toggle')"
+                :aria-expanded="openRequest === requestKey(n)"
+                @click.stop="toggleRequest(n)"
+              />
+            </div>
+            <div class="mt-1 break-all font-mono">{{ n.title }}</div>
           </div>
-          <div class="mt-1 break-all font-mono">{{ n.title }}</div>
+          <div v-if="openRequest === requestKey(n)" class="border-t border-default bg-elevated/30 px-3 py-2">
+            <!-- одна сетка на запрос и ответ: имена заголовков стоят в одну колонку -->
+            <div v-if="hasHeaders(n)" class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+              <template v-for="p in requestParts(n)" :key="p.key">
+                <div class="col-span-2 font-medium [&:not(:first-child)]:mt-2">
+                  {{ p.label }}<span v-if="p.size" class="font-normal text-muted"> · {{ formatBytes(p.size) }}</span>
+                </div>
+                <template v-for="[name, value] in p.headers" :key="name">
+                  <div class="font-mono text-muted">{{ name }}</div>
+                  <div class="break-all font-mono">{{ value }}</div>
+                </template>
+                <div v-if="!p.headers.length" class="col-span-2 text-muted">{{ t('replay.network.none') }}</div>
+              </template>
+            </div>
+            <template v-else>
+              <div v-for="p in requestParts(n).filter(part => part.size)" :key="p.key" class="font-medium">
+                {{ p.label }}<span class="font-normal text-muted"> · {{ formatBytes(p.size) }}</span>
+              </div>
+              <p class="text-muted">{{ t('replay.network.hint') }}</p>
+            </template>
+          </div>
         </li>
         <li v-if="!networkItems.length" class="px-3 py-4 text-center text-muted">{{ t('replay.empty.network') }}</li>
       </ul>

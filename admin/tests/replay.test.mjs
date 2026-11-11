@@ -15,6 +15,10 @@ const events = [
   { type: 5, timestamp: T + 2_000, data: { tag: 'breadcrumb', payload: { timestamp: sec(2_000), type: 'default', category: 'ui.click', message: 'button.save', data: { node: { tagName: 'button', textContent: 'Сохранить' } } } } },
   { type: 5, timestamp: T + 3_000, data: { tag: 'breadcrumb', payload: { timestamp: sec(3_000), type: 'default', category: 'console', level: 'error', message: 'Order failed', data: { arguments: ['Order failed', { id: 42 }], logger: 'console' } } } },
   { type: 5, timestamp: T + 2_500, data: { tag: 'performanceSpan', payload: { op: 'resource.fetch', description: 'https://seller.mechta.kz/api/order', startTimestamp: sec(2_500), endTimestamp: sec(3_250), data: { method: 'POST', statusCode: 500 } } } },
+  // адрес из networkDetailAllowUrls: SDK присылает заголовки (имена — в нижнем регистре) и размеры тел
+  { type: 5, timestamp: T + 3_500, data: { tag: 'performanceSpan', payload: { op: 'resource.xhr', description: 'https://seller.mechta.kz/api/order/42', startTimestamp: sec(3_500), endTimestamp: sec(3_620), data: { method: 'PUT', statusCode: 200, request: { size: 57, headers: { 'x-request-id': 'req-1', 'content-type': 'application/json', 'accept': '' } }, response: { size: 1280, headers: { 'content-type': 'application/json', 'content-length': '1280' }, body: { ok: true } } } } } },
+  // адрес не из списка: только размер тела и отметка URL_SKIPPED
+  { type: 5, timestamp: T + 3_700, data: { tag: 'performanceSpan', payload: { op: 'resource.fetch', description: 'https://mc.yandex.ru/watch/1', startTimestamp: sec(3_700), endTimestamp: sec(3_710), data: { method: 'GET', statusCode: 200, request: { headers: {}, _meta: { warnings: ['URL_SKIPPED'] } }, response: { headers: {}, size: 43, _meta: { warnings: ['URL_SKIPPED'] } } } } } },
   { type: 5, timestamp: T + 2_600, data: { tag: 'performanceSpan', payload: { op: 'resource.img', description: 'logo.png', startTimestamp: sec(2_600), endTimestamp: sec(2_700) } } },
   { type: 5, timestamp: T + 4_000, data: { tag: 'breadcrumb', payload: { timestamp: sec(4_000), category: 'navigation', data: { from: '/orders', to: '/orders/42' } } } },
 ]
@@ -41,9 +45,9 @@ test('время в секундах (так SDK пишет запросы и з
 
 test('вкладки: клики, консоль, запросы, переходы по времени', () => {
   const items = replayItems(events)
-  assert.deepEqual(items.map(i => i.kind), ['click', 'network', 'console', 'navigation'], 'картинки — не запросы к серверу')
+  assert.deepEqual(items.map(i => i.kind), ['click', 'network', 'console', 'network', 'network', 'navigation'], 'картинки — не запросы к серверу')
 
-  const [click, req, log, nav] = items
+  const [click, req, log, , , nav] = items
   assert.equal(click.title, 'button.save')
   assert.equal(click.detail, 'Сохранить')
   assert.equal(req.method, 'POST')
@@ -52,6 +56,21 @@ test('вкладки: клики, консоль, запросы, переход
   assert.equal(log.level, 'error')
   assert.match(log.detail, /"id":42/)
   assert.equal(nav.title, '/orders/42')
+})
+
+test('заголовки запроса и ответа — только там, где сайт их прислал', () => {
+  const [plain, detailed, skipped] = replayItems(events).filter(i => i.kind === 'network')
+
+  assert.equal(plain.request, null, 'SDK без подробностей запросов')
+  assert.equal(plain.response, null)
+
+  assert.deepEqual(detailed.request, { headers: [['content-type', 'application/json'], ['x-request-id', 'req-1']], size: 57 }, 'по алфавиту, пустые отброшены')
+  assert.deepEqual(detailed.response, { headers: [['content-length', '1280'], ['content-type', 'application/json']], size: 1280 }, 'тело ответа не берём')
+
+  assert.deepEqual(skipped.request, { headers: [], size: 0 })
+  assert.deepEqual(skipped.response, { headers: [], size: 43 })
+
+  assert.equal(replayItems(events).find(i => i.kind === 'click').request, null)
 })
 
 test('размер окна и время', () => {
