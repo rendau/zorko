@@ -30,6 +30,14 @@ func (s *Service) ListByIds(ctx context.Context, ids []int64) ([]*model.Main, er
 	return result, nil
 }
 
+func (s *Service) SeenByIds(ctx context.Context, ids []int64) ([]*model.Seen, error) {
+	result, err := s.repoDb.SeenByIds(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("repoDb.SeenByIds: %w", err)
+	}
+	return result, nil
+}
+
 func (s *Service) IdsByText(ctx context.Context, projectIds []int64, words []string, limit int) ([]int64, error) {
 	result, err := s.repoDb.IdsByText(ctx, projectIds, words, limit)
 	if err != nil {

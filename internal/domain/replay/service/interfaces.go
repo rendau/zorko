@@ -15,6 +15,7 @@ type RepoChI interface {
 	IssueReplays(ctx context.Context, projectId, issueId int64, page, pageSize int64) ([]*model.Summary, int64, error)
 	Links(ctx context.Context, projectId int64, replayId string, limit int) ([]*model.Link, error)
 	SegmentReceivedAt(ctx context.Context, projectId int64, replayId string, segmentId int) (time.Time, bool, error)
+	SegmentsReceivedAt(ctx context.Context, projectId int64, replayId string) (map[int]time.Time, error)
 }
 
 type RepoBlobI interface {

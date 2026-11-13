@@ -33,18 +33,53 @@ async function loadKeys() {
   }
 }
 
-let valuesSeq = 0
-async function loadValues(key: string, prefix: string) {
-  const seq = ++valuesSeq
-  try {
-    const rep = await tagApi.values(props.scope, key, prefix)
-    if (seq === valuesSeq)
-      values.value = rep.values
-  }
-  catch {
+// Подсказки значений. Каждый запрос на сервере читает теги всех событий периода, поэтому:
+// запрос уходит после паузы в наборе, а не на каждую букву; прежний, ещё не отвеченный, отменяется;
+// повтор того же запроса (щелчок, фокус, стрелки) не шлётся.
+const VALUES_DELAY_MS = 250
+let valuesTimer: ReturnType<typeof setTimeout> | undefined
+let valuesAbort: AbortController | null = null
+let valuesFor = ''
+let valuesKey = ''
+
+function cancelValues() {
+  clearTimeout(valuesTimer)
+  valuesAbort?.abort()
+  valuesAbort = null
+}
+
+function loadValues(key: string, prefix: string) {
+  const want = JSON.stringify([props.scope, key, prefix])
+  if (want === valuesFor)
+    return
+  valuesFor = want
+  cancelValues()
+
+  // значения прежнего ключа под новым ключом не показываем
+  if (key !== valuesKey) {
+    valuesKey = key
     values.value = []
   }
+
+  // сразу после двоеточия ждать нечего; дальше — пауза, пока человек печатает
+  valuesTimer = setTimeout(async () => {
+    const controller = new AbortController()
+    valuesAbort = controller
+    try {
+      const rep = await tagApi.values(props.scope, key, prefix, controller.signal)
+      if (!controller.signal.aborted)
+        values.value = rep.values
+    }
+    catch {
+      if (!controller.signal.aborted) {
+        values.value = []
+        valuesFor = ''
+      }
+    }
+  }, prefix ? VALUES_DELAY_MS : 0)
 }
+
+onBeforeUnmount(cancelValues)
 
 const suggestions = computed<{ label: string, apply: () => void }[]>(() => {
   const tk = token.value
@@ -63,7 +98,7 @@ function onInput() {
   open.value = true
   active.value = 0
   if (token.value.hasColon)
-    void loadValues(token.value.key, token.value.value)
+    loadValues(token.value.key, token.value.value)
 }
 
 function focusAt(pos: number) {

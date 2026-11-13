@@ -55,6 +55,29 @@ func (r *Repo) ListByIds(ctx context.Context, ids []int64) ([]*model.Main, error
 	return result, rows.Err()
 }
 
+// SeenByIds — id и даты проблем (порядок не гарантирован): список сортируется по всем проблемам
+// периода, а тексты нужны только странице — их отдаёт ListByIds
+func (r *Repo) SeenByIds(ctx context.Context, ids []int64) ([]*model.Seen, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := r.Con.Query(ctx, `select id, first_seen, last_seen from issue where id = any($1)`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("select issues seen: %w", err)
+	}
+	defer rows.Close()
+
+	result := make([]*model.Seen, 0, len(ids))
+	for rows.Next() {
+		m := &model.Seen{}
+		if err = rows.Scan(&m.Id, &m.FirstSeen, &m.LastSeen); err != nil {
+			return nil, fmt.Errorf("scan issue seen: %w", err)
+		}
+		result = append(result, m)
+	}
+	return result, rows.Err()
+}
+
 // IdsByText — проблемы проектов, у которых каждое слово есть в заголовке или месте падения
 func (r *Repo) IdsByText(ctx context.Context, projectIds []int64, words []string, limit int) ([]int64, error) {
 	if len(projectIds) == 0 || len(words) == 0 {

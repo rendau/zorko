@@ -79,26 +79,41 @@ func (u *Usecase) List(ctx context.Context, req *ListReq) (*ListRep, error) {
 		return nil, fmt.Errorf("eventSvc.IssueAggregates: %w", err)
 	}
 
-	issues, err := u.issueSvc.ListByIds(ctx, lo.Map(aggs, func(a *eventModel.IssueAgg, _ int) int64 { return a.IssueId }))
+	// сортировка идёт по всем проблемам периода (их до 50 000), поэтому из Postgres для неё берутся
+	// только id и даты; полные строки с текстами читаются уже для одной страницы
+	seen, err := u.issueSvc.SeenByIds(ctx, lo.Map(aggs, func(a *eventModel.IssueAgg, _ int) int64 { return a.IssueId }))
 	if err != nil {
-		return nil, fmt.Errorf("issueSvc.ListByIds: %w", err)
+		return nil, fmt.Errorf("issueSvc.SeenByIds: %w", err)
 	}
-	byId := lo.KeyBy(issues, func(v *issueModel.Main) int64 { return v.Id })
+	seenById := lo.KeyBy(seen, func(v *issueModel.Seen) int64 { return v.Id })
 
 	// проблемы, удалённые вместе с проектом, в ClickHouse ещё живут до TTL — пропускаем
-	items := lo.FilterMap(aggs, func(a *eventModel.IssueAgg, _ int) (*ListItem, bool) {
-		issue, ok := byId[a.IssueId]
-		return &ListItem{Issue: issue, Events: a.Events, Users: a.Users}, ok
+	rows := lo.FilterMap(aggs, func(a *eventModel.IssueAgg, _ int) (*listRow, bool) {
+		s, ok := seenById[a.IssueId]
+		return &listRow{agg: a, seen: s}, ok
 	})
-	sortItems(items, req.Sort)
+	sortRows(rows, req.Sort)
 
-	total := int64(len(items))
+	total := int64(len(rows))
 	from := min(req.Page*req.PageSize, total)
 	to := min(from+req.PageSize, total)
-	page := items[from:to]
+	rows = rows[from:to]
 
-	if len(page) > 0 {
-		pageIds := lo.Map(page, func(v *ListItem, _ int) int64 { return v.Issue.Id })
+	page := []*ListItem{}
+	if len(rows) > 0 {
+		pageIds := lo.Map(rows, func(v *listRow, _ int) int64 { return v.agg.IssueId })
+
+		issues, err := u.issueSvc.ListByIds(ctx, pageIds)
+		if err != nil {
+			return nil, fmt.Errorf("issueSvc.ListByIds: %w", err)
+		}
+		byId := lo.KeyBy(issues, func(v *issueModel.Main) int64 { return v.Id })
+		// проблему могли удалить между двумя чтениями — её в странице не будет
+		page = lo.FilterMap(rows, func(v *listRow, _ int) (*ListItem, bool) {
+			issue, ok := byId[v.agg.IssueId]
+			return &ListItem{Issue: issue, Events: v.agg.Events, Users: v.agg.Users}, ok
+		})
+
 		// ровно sparklineBuckets интервалов: правая граница — по целому числу шагов
 		step := f.To.Sub(f.From) / sparklineBuckets
 		sf := *f
@@ -343,29 +358,35 @@ func (u *Usecase) issueFilter(ctx context.Context, id int64, period, environment
 	}, nil
 }
 
-func sortItems(items []*ListItem, sort string) {
-	key := func(v *ListItem) int64 {
+// listRow — проблема в сортировке списка: счётчики за период (ClickHouse) и даты (Postgres)
+type listRow struct {
+	agg  *eventModel.IssueAgg
+	seen *issueModel.Seen
+}
+
+func sortRows(rows []*listRow, sort string) {
+	key := func(v *listRow) int64 {
 		switch sort {
 		case "first_seen":
-			return v.Issue.FirstSeen.UnixMilli()
+			return v.seen.FirstSeen.UnixMilli()
 		case "events":
-			return v.Events
+			return v.agg.Events
 		case "users":
-			return v.Users
+			return v.agg.Users
 		default:
-			return v.Issue.LastSeen.UnixMilli()
+			return v.seen.LastSeen.UnixMilli()
 		}
 	}
-	slices.SortStableFunc(items, func(a, b *ListItem) int {
+	slices.SortStableFunc(rows, func(a, b *listRow) int {
 		ka, kb := key(a), key(b)
 		switch {
 		case ka > kb:
 			return -1
 		case ka < kb:
 			return 1
-		case a.Issue.Id > b.Issue.Id:
+		case a.agg.IssueId > b.agg.IssueId:
 			return -1
-		case a.Issue.Id < b.Issue.Id:
+		case a.agg.IssueId < b.agg.IssueId:
 			return 1
 		}
 		return 0

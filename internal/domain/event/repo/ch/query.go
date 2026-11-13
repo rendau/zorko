@@ -129,57 +129,55 @@ func (r *Repo) Series(ctx context.Context, f *model.StatFilter, step time.Durati
 	return result, rows.Err()
 }
 
-// TagTop — по каждому ключу тега: сколько событий с ним и топ значений
+// TagTop — по каждому ключу тега: сколько событий с ним и топ значений.
+//
+// Одним проходом: ключи и значения карты разворачиваются парой, счёт по (ключ, значение)
+// сворачивается по ключу — сумма даёт «всего», первые top по убыванию — значения. Раньше было два
+// запроса по тем же строкам, и значение искалось в карте (tags[k]) на каждую пару: на проблеме с
+// 300 тыс. событий — 3,4 с ЦПУ ClickHouse, одним проходом — 0,66 с.
 func (r *Repo) TagTop(ctx context.Context, f *model.StatFilter, top int) ([]*model.TagDist, error) {
 	if len(f.ProjectIds) == 0 {
 		return nil, nil
 	}
 	cond, args := where(f)
 
-	totals := map[string]int64{}
+	// при равном счёте — по значению, чтобы ответ не менялся от запроса к запросу
 	rows, err := r.con.Query(ctx, `
-		select k, count() from event_stat array join mapKeys(tags) as k
-		where `+cond+` group by k`, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query tag totals: %w", err)
-	}
-	for rows.Next() {
-		var k string
-		var c uint64
-		if err = rows.Scan(&k, &c); err != nil {
-			rows.Close()
-			return nil, fmt.Errorf("scan tag totals: %w", err)
-		}
-		totals[k] = int64(c)
-	}
-	rows.Close()
-
-	rows, err = r.con.Query(ctx, `
-		select k, tags[k] as v, count() as c from event_stat array join mapKeys(tags) as k
-		where `+cond+`
-		group by k, v
-		order by k, c desc
-		limit ? by k`, append(args, top)...)
+		select k, total, arrayMap(x -> x.1, vs), arrayMap(x -> x.2, vs)
+		from (
+			select k, sum(c) as total,
+			       arraySlice(arraySort(x -> (-toInt64(x.2), x.1), groupArray((v, c))), 1, ?) as vs
+			from (
+				select k, v, count() as c
+				from event_stat array join mapKeys(tags) as k, mapValues(tags) as v
+				where `+cond+`
+				group by k, v
+			)
+			group by k
+		)`, append([]any{top}, args...)...)
 	if err != nil {
 		return nil, fmt.Errorf("query tag top: %w", err)
 	}
 	defer rows.Close()
 
-	byKey := map[string]*model.TagDist{}
+	result := make([]*model.TagDist, 0, 16)
 	for rows.Next() {
-		var k, v string
-		var c uint64
-		if err = rows.Scan(&k, &v, &c); err != nil {
+		var k string
+		var total uint64
+		var values []string
+		var counts []uint64
+		if err = rows.Scan(&k, &total, &values, &counts); err != nil {
 			return nil, fmt.Errorf("scan tag top: %w", err)
 		}
-		d, ok := byKey[k]
-		if !ok {
-			d = &model.TagDist{Key: k, Total: totals[k]}
-			byKey[k] = d
-		}
-		d.Values = append(d.Values, model.TagValueCount{Value: v, Count: int64(c)})
+		result = append(result, &model.TagDist{
+			Key:   k,
+			Total: int64(total),
+			Values: lo.Map(values, func(v string, i int) model.TagValueCount {
+				return model.TagValueCount{Value: v, Count: int64(counts[i])}
+			}),
+		})
 	}
-	return lo.Values(byKey), rows.Err()
+	return result, rows.Err()
 }
 
 // TagKeys — ключи тегов по частоте
@@ -207,17 +205,36 @@ func (r *Repo) TagKeys(ctx context.Context, f *model.StatFilter, limit int) ([]s
 	return result, rows.Err()
 }
 
+// tagColumns — теги, значение которых лежит и отдельной колонкой (нормализация ставит их из тех же
+// полей события). Читать колонку раз в десять дешевле, чем доставать значение из карты тегов:
+// список окружений запрашивается при каждом открытии списка проблем
+var tagColumns = map[string]string{
+	"environment": "environment",
+	"release":     "release",
+	"level":       "level",
+}
+
 // TagValues — значения ключа по частоте; prefix — начало значения (без учёта регистра)
 func (r *Repo) TagValues(ctx context.Context, f *model.StatFilter, key, prefix string, limit int) ([]string, error) {
 	if len(f.ProjectIds) == 0 {
 		return nil, nil
 	}
 	cond, args := where(f)
-	rows, err := r.con.Query(ctx, `
-		select tags[?] as v from event_stat
-		where `+cond+` and mapContains(tags, ?) and v ilike ?
-		group by v order by count() desc limit ?`,
-		append(append([]any{key}, args...), key, escapeLike(prefix)+"%", limit)...)
+
+	var query string
+	if column, ok := tagColumns[key]; ok {
+		query = `select ` + column + ` as v from event_stat
+			where ` + cond + ` and v != '' and v ilike ?
+			group by v order by count() desc limit ?`
+		args = append(args, escapeLike(prefix)+"%", limit)
+	} else {
+		query = `select tags[?] as v from event_stat
+			where ` + cond + ` and mapContains(tags, ?) and v ilike ?
+			group by v order by count() desc limit ?`
+		args = append(append([]any{key}, args...), key, escapeLike(prefix)+"%", limit)
+	}
+
+	rows, err := r.con.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query tag values: %w", err)
 	}
@@ -281,27 +298,25 @@ func (r *Repo) ListEvents(ctx context.Context, f *model.StatFilter, offset, limi
 	return result, int64(total), rows.Err()
 }
 
-// GetEvent — событие проблемы по id; eventId = "latest" / "oldest" — последнее / первое
+// GetEvent — событие проблемы по id; eventId = "latest" / "oldest" — последнее / первое.
+//
+// В два шага: сначала ключ события по лёгким колонкам (eventKey), потом строка с телом — по полному
+// ключу сортировки. Одним запросом (`select …, data … order by timestamp desc limit 1`) ClickHouse
+// читал тела (data, до 1 МБ) всех событий проблемы и упирался в потолок памяти сервера (code 241).
+// Замер на стенде (ClickHouse 25.8, лимит 2 ГБ), 500 событий по 1 МБ: было 400–925 МБ памяти на
+// запрос, стало до 25 МБ — и от числа событий проблемы память больше не зависит.
 func (r *Repo) GetEvent(ctx context.Context, projectId, issueId int64, eventId string) (*model.EventDetail, bool, error) {
-	base := `select ` + eventSummaryColumns + `, data from event final where project_id = ? and issue_id = ?`
-	args := []any{uint64(projectId), uint64(issueId)}
-
-	var query string
-	switch eventId {
-	case "latest":
-		query = base + ` order by timestamp desc, event_id desc limit 1`
-	case "oldest":
-		query = base + ` order by timestamp, event_id limit 1`
-	default:
-		id, err := uuid.Parse(eventId)
-		if err != nil {
-			return nil, false, nil
-		}
-		query = base + ` and event_id = ? limit 1`
-		args = append(args, id)
+	ts, id, found, err := r.eventKey(ctx, projectId, issueId, eventId)
+	if err != nil || !found {
+		return nil, false, err
 	}
 
-	rows, err := r.con.Query(ctx, query, args...)
+	// без final: строки с одним ключом — повторная доставка того же события, годится любая.
+	// prewhere — явно: тело читается только у строки, прошедшей условие, а не у всей гранулы
+	rows, err := r.con.Query(ctx, `
+		select `+eventSummaryColumns+`, data from event
+		prewhere project_id = ? and issue_id = ? and timestamp = fromUnixTimestamp64Milli(?, 'UTC') and event_id = ?
+		limit 1`, uint64(projectId), uint64(issueId), ts.UnixMilli(), id)
 	if err != nil {
 		return nil, false, fmt.Errorf("query event: %w", err)
 	}
@@ -325,6 +340,44 @@ func (r *Repo) GetEvent(ctx context.Context, projectId, issueId int64, eventId s
 		return nil, false, err
 	}
 	return detail, true, nil
+}
+
+// eventKey — ключ события (timestamp, event_id) без чтения тела; eventId — как в GetEvent.
+// Без final: дубли строки имеют тот же ключ, а без него ClickHouse читает в порядке ключа
+// (последнее событие — с конца, не перебирая всю проблему) и использует индекс по event_id.
+func (r *Repo) eventKey(ctx context.Context, projectId, issueId int64, eventId string) (time.Time, uuid.UUID, bool, error) {
+	query := `select timestamp, event_id from event where project_id = ? and issue_id = ?`
+	args := []any{uint64(projectId), uint64(issueId)}
+
+	switch eventId {
+	case "latest":
+		query += ` order by timestamp desc, event_id desc limit 1`
+	case "oldest":
+		query += ` order by timestamp, event_id limit 1`
+	default:
+		id, err := uuid.Parse(eventId)
+		if err != nil {
+			return time.Time{}, uuid.Nil, false, nil
+		}
+		query += ` and event_id = ? limit 1`
+		args = append(args, id)
+	}
+
+	rows, err := r.con.Query(ctx, query, args...)
+	if err != nil {
+		return time.Time{}, uuid.Nil, false, fmt.Errorf("query event key: %w", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return time.Time{}, uuid.Nil, false, rows.Err()
+	}
+
+	var ts time.Time
+	var id uuid.UUID
+	if err = rows.Scan(&ts, &id); err != nil {
+		return time.Time{}, uuid.Nil, false, fmt.Errorf("scan event key: %w", err)
+	}
+	return ts, id, true, nil
 }
 
 func (r *Repo) neighbor(ctx context.Context, projectId, issueId int64, s *model.EventSummary, cmp, dir string) (string, error) {

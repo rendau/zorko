@@ -24,6 +24,13 @@ type Main struct {
 
 const StatusUnresolved = "unresolved"
 
+// Seen — когда проблему видели: лёгкая строка для сортировки списка, без текстов
+type Seen struct {
+	Id        int64
+	FirstSeen time.Time
+	LastSeen  time.Time
+}
+
 // Hit — все события пачки с одним отпечатком в одном проекте
 type Hit struct {
 	ProjectId   int64

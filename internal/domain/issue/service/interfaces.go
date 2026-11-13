@@ -14,5 +14,6 @@ type RepoDbI interface {
 
 	Get(ctx context.Context, id int64) (*model.Main, bool, error)
 	ListByIds(ctx context.Context, ids []int64) ([]*model.Main, error)
+	SeenByIds(ctx context.Context, ids []int64) ([]*model.Seen, error)
 	IdsByText(ctx context.Context, projectIds []int64, words []string, limit int) ([]int64, error)
 }

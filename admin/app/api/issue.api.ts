@@ -38,6 +38,6 @@ export const eventApi = {
 
 export const tagApi = {
   keys: (scope: IssueScope) => apiFetch<{ keys: string[] }>('/tag/key', { query: scopeQuery(scope) }),
-  values: (scope: IssueScope, key: string, prefix: string) =>
-    apiFetch<{ values: string[] }>('/tag/value', { query: { ...scopeQuery(scope), key, prefix } }),
+  values: (scope: IssueScope, key: string, prefix: string, signal?: AbortSignal) =>
+    apiFetch<{ values: string[] }>('/tag/value', { query: { ...scopeQuery(scope), key, prefix }, signal }),
 }

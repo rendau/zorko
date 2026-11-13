@@ -23,6 +23,7 @@ type ProjectServiceI interface {
 type IssueServiceI interface {
 	Get(ctx context.Context, id int64, errNE bool) (*issueModel.Main, bool, error)
 	ListByIds(ctx context.Context, ids []int64) ([]*issueModel.Main, error)
+	SeenByIds(ctx context.Context, ids []int64) ([]*issueModel.Seen, error)
 	IdsByText(ctx context.Context, projectIds []int64, words []string, limit int) ([]int64, error)
 }
 

@@ -205,44 +205,93 @@ func (r *Repo) Get(ctx context.Context, projectId int64, replayId string) (*mode
 	return s, true, nil
 }
 
-// IssueReplays — записи с ошибками проблемы; ErrorAt — первая ошибка проблемы в записи, новые первыми
+// IssueReplays — записи с ошибками проблемы; ErrorAt — первая ошибка проблемы в записи, новые первыми.
+//
+// В два шага: страница и общее число — по узким колонкам (связи replay_issue и наличие нулевого
+// сегмента по первичному ключу), сводка по широким колонкам — только для записей страницы. Раньше
+// сводка считалась по всем записям проблемы, и дважды: для числа и для страницы.
 func (r *Repo) IssueReplays(ctx context.Context, projectId, issueId int64, page, pageSize int64) ([]*model.Summary, int64, error) {
 	linkArgs := []any{uint64(projectId), uint64(issueId)}
-	summary := `select ` + summaryColumns + ` from replay_segment
-		where project_id = ? and replay_id in (select replay_id from replay_issue where project_id = ? and issue_id = ?)
-		group by project_id, replay_id
-		having ` + havingSegmentZero
-	summaryArgs := append([]any{uint64(projectId)}, linkArgs...)
+	// записи проблемы, которые можно проиграть (есть нулевой сегмент), и время первой ошибки в каждой
+	linked := `from (
+			select replay_id, min(timestamp) as error_at from replay_issue
+			where project_id = ? and issue_id = ? group by replay_id
+		) as l
+		where l.replay_id in (
+			select replay_id from replay_segment
+			where project_id = ? and segment_id = 0
+			  and replay_id in (select replay_id from replay_issue where project_id = ? and issue_id = ?)
+		)`
+	linkedArgs := append(append(append([]any{}, linkArgs...), uint64(projectId)), linkArgs...)
 
 	var total uint64
-	if err := r.con.QueryRow(ctx, `select count() from (`+summary+`)`, summaryArgs...).Scan(&total); err != nil {
+	if err := r.con.QueryRow(ctx, `select count() `+linked, linkedArgs...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count issue replays: %w", err)
 	}
 
 	limit := lo.Ternary(pageSize > 0, pageSize, 20)
-	rows, err := r.con.Query(ctx, `select s.*, l.error_at from (`+summary+`) as s
-		inner join (
-			select replay_id, min(timestamp) as error_at from replay_issue
-			where project_id = ? and issue_id = ? group by replay_id
-		) as l on l.replay_id = s.replay_id
-		order by l.error_at desc
-		limit ? offset ?`, append(append(summaryArgs, linkArgs...), limit, page*limit)...)
+	rows, err := r.con.Query(ctx, `select l.replay_id, l.error_at `+linked+`
+		order by l.error_at desc, l.replay_id desc
+		limit ? offset ?`, append(linkedArgs, limit, page*limit)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query issue replays: %w", err)
 	}
 	defer rows.Close()
 
-	result := make([]*model.Summary, 0, limit)
+	ids := make([]uuid.UUID, 0, limit)
+	errorAt := make(map[uuid.UUID]time.Time, limit)
 	for rows.Next() {
-		var errorAt time.Time
-		s, err := scanSummary(rows.Scan, &errorAt)
-		if err != nil {
+		var id uuid.UUID
+		var at time.Time
+		if err = rows.Scan(&id, &at); err != nil {
 			return nil, 0, fmt.Errorf("scan issue replay: %w", err)
 		}
-		s.ErrorAt = &errorAt
-		result = append(result, s)
+		ids = append(ids, id)
+		errorAt[id] = at
 	}
-	return result, int64(total), rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows issue replays: %w", err)
+	}
+	if len(ids) == 0 {
+		return []*model.Summary{}, int64(total), nil
+	}
+
+	summaries, err := r.summaries(ctx, projectId, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// порядок страницы; запись, сегменты которой успели уйти по TTL, пропускается
+	result := lo.FilterMap(ids, func(id uuid.UUID, _ int) (*model.Summary, bool) {
+		s, ok := summaries[id]
+		if ok {
+			s.ErrorAt = new(errorAt[id])
+		}
+		return s, ok
+	})
+	return result, int64(total), nil
+}
+
+// summaries — сводки записей проекта по их номерам
+func (r *Repo) summaries(ctx context.Context, projectId int64, ids []uuid.UUID) (map[uuid.UUID]*model.Summary, error) {
+	rows, err := r.con.Query(ctx, `select `+summaryColumns+` from replay_segment
+		where project_id = ? and replay_id in ?
+		group by project_id, replay_id
+		having `+havingSegmentZero, uint64(projectId), ids)
+	if err != nil {
+		return nil, fmt.Errorf("query replay summaries: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID]*model.Summary, len(ids))
+	for rows.Next() {
+		s, err := scanSummary(rows.Scan)
+		if err != nil {
+			return nil, fmt.Errorf("scan replay summary: %w", err)
+		}
+		result[toUuid(s.ReplayId)] = s
+	}
+	return result, rows.Err()
 }
 
 // Links — ошибки записи (для отметок на шкале), по времени; не больше limit
@@ -289,6 +338,28 @@ func (r *Repo) SegmentReceivedAt(ctx context.Context, projectId int64, replayId 
 		return time.Time{}, false, fmt.Errorf("scan segment: %w", err)
 	}
 	return receivedAt, true, nil
+}
+
+// SegmentsReceivedAt — когда принят каждый сегмент записи (см. SegmentReceivedAt): одним запросом
+// на всю запись, для проигрывателя, который забирает её сегменты пачкой
+func (r *Repo) SegmentsReceivedAt(ctx context.Context, projectId int64, replayId string) (map[int]time.Time, error) {
+	rows, err := r.con.Query(ctx, `select segment_id, max(received_at) from replay_segment
+		where project_id = ? and replay_id = ? group by segment_id`, uint64(projectId), toUuid(replayId))
+	if err != nil {
+		return nil, fmt.Errorf("query segments: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[int]time.Time, 64)
+	for rows.Next() {
+		var segmentId uint16
+		var receivedAt time.Time
+		if err = rows.Scan(&segmentId, &receivedAt); err != nil {
+			return nil, fmt.Errorf("scan segments: %w", err)
+		}
+		result[int(segmentId)] = receivedAt
+	}
+	return result, rows.Err()
 }
 
 // toUuid — 32 hex как UUID; некорректный id не роняет вставку

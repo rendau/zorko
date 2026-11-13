@@ -20,10 +20,12 @@ type Service struct {
 	repoCh   RepoChI
 	repoBlob RepoBlobI // nil — S3 не настроен: тела сегментов недоступны
 	repoDb   RepoDbI
+
+	segDays *segDays
 }
 
 func New(repoCh RepoChI, repoBlob RepoBlobI, repoDb RepoDbI) *Service {
-	return &Service{repoCh: repoCh, repoBlob: repoBlob, repoDb: repoDb}
+	return &Service{repoCh: repoCh, repoBlob: repoBlob, repoDb: repoDb, segDays: newSegDays(repoCh)}
 }
 
 // PutSegmentBody кладёт тело сегмента в S3; несжатое (голый JSON) сжимает zlib, чтобы в хранилище был
@@ -58,9 +60,9 @@ func (s *Service) SegmentBody(ctx context.Context, projectId int64, replayId str
 	if replayId == "" || segmentId < 0 || segmentId > model.MaxSegmentId {
 		return nil, errs.ReplayNotFound
 	}
-	receivedAt, found, err := s.repoCh.SegmentReceivedAt(ctx, projectId, replayId, segmentId)
+	receivedAt, found, err := s.segDays.receivedAt(ctx, projectId, replayId, segmentId)
 	if err != nil {
-		return nil, fmt.Errorf("repoCh.SegmentReceivedAt: %w", err)
+		return nil, err
 	}
 	if !found {
 		return nil, errs.ReplayNotFound

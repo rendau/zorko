@@ -92,6 +92,9 @@ func TestRead(t *testing.T) {
 	require.Contains(t, byKey, "browser.name")
 	assert.Equal(t, int64(3), byKey["browser.name"].Total)
 	assert.Equal(t, model.TagValueCount{Value: "Chrome", Count: 2}, byKey["browser.name"].Values[0])
+	assert.Equal(t, model.TagValueCount{Value: "Safari", Count: 1}, byKey["browser.name"].Values[1])
+	require.Len(t, byKey["url"].Values, 2, "значений у ключа два: u1 дважды и u2")
+	assert.Equal(t, model.TagValueCount{Value: "https://shop/cart/u1", Count: 2}, byKey["url"].Values[0])
 
 	// подсказки
 	keys, err := read.TagKeys(ctx, f, 100)
@@ -100,8 +103,19 @@ func TestRead(t *testing.T) {
 	values, err := read.TagValues(ctx, f, "browser.name", "saf", 20)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"Safari"}, values)
+	// окружение, релиз и уровень читаются из своих колонок, а не из карты тегов — ответ тот же
+	values, err = read.TagValues(ctx, f, "environment", "", 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"production", "staging"}, values, "по частоте")
+	values, err = read.TagValues(ctx, f, "environment", "STAG", 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"staging"}, values)
+	values, err = read.TagValues(ctx, f, "release", "", 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"1.0"}, values)
 
-	// события и соседи
+	// события и соседи; повторная доставка (те же строки ещё раз) ответов не меняет
+	require.NoError(t, repo.InsertEvents(ctx, events[:3]))
 	issueFilter := &model.StatFilter{ProjectIds: f.ProjectIds, IssueIds: new([]int64{1}), From: now.Add(-30 * 24 * time.Hour), To: now.Add(time.Minute)}
 	list, total, err := read.ListEvents(ctx, issueFilter, 0, 50)
 	require.NoError(t, err)
