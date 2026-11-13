@@ -3,8 +3,14 @@
   Копия настроек чарта helm-zeon (charts/argo/zorko/files/clickhouse.xml), менять вместе.
 
   1. Служебные журналы ClickHouse (system.*_log) в образе по умолчанию без срока хранения —
-     на пустом zorko они росли на десятки МБ в час. Храним 3 дня; отладочные trace_log и
-     text_log выключены.
+     на пустом zorko они росли на десятки МБ в час. Оставлены три, по которым разбирают сбои:
+     запросы (query_log), слияния (part_log) и ошибки (error_log), хранятся 3 дня. Остальные
+     выключены: отладочные trace_log и text_log, а также те, что ClickHouse пишет сам и
+     непрерывно, — метрики раз в секунду (metric_log, asynchronous_metric_log,
+     query_metric_log), разбор запросов по шагам (processors_profile_log), потоки и
+     представления запросов (query_thread_log, query_views_log). Ими никто не пользовался
+     (метрики пода идут в Prometheus), а стоили они памяти и фоновой работы: на стенде
+     (25.8, лимит 2 ГБ) без них в простое память контейнера 424 → 182 МБ, ЦПУ 0,067 → 0,051 ядра.
      При смене срока ClickHouse переименовывает старую таблицу в <имя>_0 и создаёт новую:
      старые копии и выключенные таблицы удаляются руками (DROP TABLE system.<имя>), см. README zorko, «Хранение и диски».
   2. Свой журнал сервера — уровень warning вместо trace (файлы до 10 ГБ на диске ноды).
@@ -28,7 +34,12 @@
        между дисками, Kafka внутри ClickHouse, распределённые таблицы), — по 1 потоку,
        планировщик фоновых задач — 16 вместо 512. Каждый поток держит свой запас памяти и
        простаивая: на стенде потоков 667 → 97, память контейнера 1,0 ГБ → 0,47 ГБ;
-     - сводные метрики (system.asynchronous_metrics) — раз в 10 с, а не каждую секунду.
+     - сводные метрики (system.asynchronous_metrics) — раз в 10 с, а не каждую секунду;
+     - свой счётчик памяти ClickHouse сверяет с реальной памятью контейнера (cgroup)
+       (memory_worker_correct_memory_tracker, в 25.8 по умолчанию выключено). Без сверки
+       счётчик расходился с реальностью: в zeon 2026-11-07 ClickHouse считал занятыми
+       1,8 ГБ при реальных 1,0 ГБ и отказывал вставкам и чтению с «memory limit exceeded»
+       (code 241), хотя до лимита пода оставался почти гигабайт.
      Настройки merge_tree действуют и на уже созданные таблицы (после перезапуска).
   5. Файлы журнала сервера в контейнере — не больше 2 по 100 МБ (по умолчанию 10 по 1 ГБ).
 -->
@@ -47,6 +58,7 @@
     <background_message_broker_schedule_pool_size>1</background_message_broker_schedule_pool_size>
     <background_buffer_flush_schedule_pool_size>1</background_buffer_flush_schedule_pool_size>
     <asynchronous_metrics_update_period_s>10</asynchronous_metrics_update_period_s>
+    <memory_worker_correct_memory_tracker>1</memory_worker_correct_memory_tracker>
 
     <background_pool_size>2</background_pool_size>
     <background_merges_mutations_concurrency_ratio>1</background_merges_mutations_concurrency_ratio>
@@ -69,33 +81,21 @@
     <query_log>
         <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
     </query_log>
-    <query_thread_log>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-    </query_thread_log>
-    <query_views_log>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-    </query_views_log>
-    <query_metric_log>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-    </query_metric_log>
     <part_log>
         <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
     </part_log>
-    <metric_log>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-    </metric_log>
-    <asynchronous_metric_log>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-    </asynchronous_metric_log>
     <error_log>
         <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
     </error_log>
-    <processors_profile_log>
-        <ttl>event_date + INTERVAL 3 DAY DELETE</ttl>
-    </processors_profile_log>
 
     <trace_log remove="1"/>
     <text_log remove="1"/>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <query_metric_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <query_views_log remove="1"/>
 
     <storage_configuration>
         <disks>

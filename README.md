@@ -168,9 +168,11 @@ ADR 012–016.
 
 - **Журналы самого ClickHouse** (`system.*_log`) по умолчанию хранятся вечно и на пустом сервисе
   растут на десятки МБ в час. Настройки сервера — `scripts/clickhouse.xml` (стенд) и
-  `charts/argo/zorko/files/clickhouse.xml` в helm-zeon (менять вместе): журналы — 3 дня,
-  `trace_log` и `text_log` выключены, журнал сервера — уровень `warning`, ClickHouse не занимает
-  последний 1 ГБ диска.
+  `charts/argo/zorko/files/clickhouse.xml` в helm-zeon (менять вместе): оставлены три журнала,
+  по которым разбирают сбои, — запросы, слияния и ошибки (`query_log`, `part_log`, `error_log`),
+  хранятся 3 дня; остальные выключены (отладочные и те, куда ClickHouse сам непрерывно пишет
+  свои метрики, — на стенде без них в простое память 424 → 182 МБ). Журнал сервера — уровень
+  `warning`, ClickHouse не занимает последний 1 ГБ диска.
 - **Данные zorko в ClickHouse.** Раз в `CH_DISK_CHECK_INTERVAL` (10 мин) одна из копий обработки
   смотрит диск; если занято больше `CH_DISK_MAX_USED_PERCENT` (80 %), удаляет самые старые дни во
   всех таблицах zorko, пока не станет ниже. Сегодняшний день не трогается. Метрики:
@@ -207,6 +209,13 @@ where database = 'system' group by table order by sum(bytes_on_disk) desc;
 drop table if exists system.trace_log sync;
 drop table if exists system.text_log sync;
 drop table if exists system.query_log_0 sync;   -- и остальные system.*_0 из списка
+-- выключенные позже: метрики и разбор запросов
+drop table if exists system.metric_log sync;
+drop table if exists system.asynchronous_metric_log sync;
+drop table if exists system.query_metric_log sync;
+drop table if exists system.processors_profile_log sync;
+drop table if exists system.query_thread_log sync;
+drop table if exists system.query_views_log sync;
 ```
 
 ## Локально
