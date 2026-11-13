@@ -18,9 +18,18 @@ var (
 		Buckets: []float64{0.005, 0.02, 0.1, 0.5, 2, 10},
 	}, []string{"stage"})
 
-	// задержка обработки: от приёма самого старого события пачки до записи в базы
+	// задержка обработки: от приёма самого старого события пачки до записи в базы. В неё входит
+	// ожидание пачки (processor_batch_wait_seconds): при малом потоке событие лежит в очереди, пока
+	// пачка копится. «Обработка не успевает» — это задержка заметно выше ожидания, а не выше нуля
 	metricLag = metrics.Factory.NewGauge(prometheus.GaugeOpts{
 		Name: "processor_lag_seconds",
+	})
+
+	// сколько обработчик копит пачку при малом потоке (PROCESSOR_BATCH_WAIT) — норма для
+	// processor_lag_seconds и для нескольких сообщений в queue_consumer_lag_messages: на графиках
+	// с ней сравнивают задержку, не зашивая число в дашборд
+	metricBatchWait = metrics.Factory.NewGauge(prometheus.GaugeOpts{
+		Name: "processor_batch_wait_seconds",
 	})
 
 	// повторы записи после сбоя баз

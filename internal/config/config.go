@@ -70,8 +70,11 @@ var Conf = struct {
 	AdminDir        string `env:"ADMIN_DIR" envDefault:"./admin-ui"`
 	AdminApiBaseUrl string `env:"ADMIN_API_BASE_URL"`
 
-	ProcessorEnabled   bool          `env:"PROCESSOR_ENABLED" envDefault:"true"`
-	ProcessorBatchSize int           `env:"PROCESSOR_BATCH_SIZE" envDefault:"500"`
+	ProcessorEnabled   bool `env:"PROCESSOR_ENABLED" envDefault:"true"`
+	ProcessorBatchSize int  `env:"PROCESSOR_BATCH_SIZE" envDefault:"500"`
+	// сколько обработчик копит пачку при малом потоке: пачка — вставка в ClickHouse и слияние, так
+	// что чем дольше, тем меньше работы базе, но тем позже ошибка видна в интерфейсе.
+	// Значение видно в метрике processor_batch_wait_seconds — это норма для processor_lag_seconds
 	ProcessorBatchWait time.Duration `env:"PROCESSOR_BATCH_WAIT" envDefault:"1s"`
 
 	IssueEventStorePerMinute int `env:"ISSUE_EVENT_STORE_PER_MINUTE" envDefault:"100"`

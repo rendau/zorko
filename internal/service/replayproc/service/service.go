@@ -29,7 +29,8 @@ var (
 		Name: "replay_processor_retry_total",
 	})
 
-	// сколько ждал самый старый сегмент пачки от приёма до записи
+	// сколько ждал самый старый сегмент пачки от приёма до записи; как и у ошибок, сюда входит
+	// ожидание пачки (processor_batch_wait_seconds)
 	metricLag = metrics.Factory.NewGauge(prometheus.GaugeOpts{
 		Name: "replay_processor_lag_seconds",
 	})

@@ -399,6 +399,7 @@ func (a *App) Init() {
 
 		a.processor = serviceProcessorServiceP.New(serviceProcessorServiceP.Config{
 			BatchSize:      config.Conf.ProcessorBatchSize,
+			BatchWait:      config.Conf.ProcessorBatchWait,
 			StorePerMinute: int64(config.Conf.IssueEventStorePerMinute),
 			RetryMin:       time.Second,
 			RetryMax:       30 * time.Second,

@@ -16,7 +16,10 @@ import (
 )
 
 type Config struct {
-	BatchSize      int
+	BatchSize int
+	// BatchWait — сколько очередь копит пачку при малом потоке (ждёт брокер, FetchMaxWait очереди);
+	// здесь — только для метрики processor_batch_wait_seconds
+	BatchWait      time.Duration
 	StorePerMinute int64
 	// пауза между повторами после сбоя базы: от RetryMin, удваивается до RetryMax
 	RetryMin time.Duration
@@ -42,6 +45,8 @@ type Service struct {
 
 func New(conf Config, queue queueI, normalizer normalizerI, symbolicator symbolicatorI, grouper grouperI,
 	issueService issueServiceI, eventService eventServiceI, replayLinker ReplayLinker, projectLabel projectLabelI) *Service {
+	metricBatchWait.Set(conf.BatchWait.Seconds())
+
 	return &Service{
 		conf:         conf,
 		queue:        queue,
