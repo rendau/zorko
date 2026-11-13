@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	artifactModel "github.com/rendau/zorko/internal/domain/artifact/model"
 	artifactService "github.com/rendau/zorko/internal/domain/artifact/service"
@@ -29,6 +30,11 @@ const (
 	MaxUnpackedBytes   = 2 << 30
 	MaxFiles           = 20000
 	MaxChunksPerBundle = MaxBundleBytes / (1 << 20) // куски не меньше 1 МБ, кроме последнего
+
+	// MaxInFlightBytes — сколько распакованных байт файлов одновременно держат в памяти все сборки
+	// копии. Файл читается целиком (SHA-1 нужен до записи в S3), и без предела восемь файлов по
+	// 200 МБ заняли бы гигабайты. Файл больше предела идёт один.
+	MaxInFlightBytes = 256 << 20
 )
 
 type Config struct {
@@ -45,12 +51,14 @@ type Config struct {
 	MaxFileBytes     int64
 	MaxUnpackedBytes int64
 	MaxFiles         int
+	MaxInFlightBytes int64
 }
 
 type Service struct {
 	conf     Config
 	artifact artifactServiceI
 	sem      chan struct{}
+	fileSem  *semaphore.Weighted // распакованные байты файлов в работе, см. MaxInFlightBytes
 	wg       sync.WaitGroup
 
 	mu      sync.Mutex
@@ -82,7 +90,13 @@ func New(conf Config, artifact artifactServiceI) *Service {
 	if conf.MaxFiles == 0 {
 		conf.MaxFiles = MaxFiles
 	}
-	return &Service{conf: conf, artifact: artifact, sem: make(chan struct{}, conf.Concurrency), rootCtx: context.Background()}
+	if conf.MaxInFlightBytes <= 0 {
+		conf.MaxInFlightBytes = MaxInFlightBytes
+	}
+	return &Service{
+		conf: conf, artifact: artifact, sem: make(chan struct{}, conf.Concurrency),
+		fileSem: semaphore.NewWeighted(conf.MaxInFlightBytes), rootCtx: context.Background(),
+	}
 }
 
 // Start — корневой контекст фоновых сборок (отменяется при остановке приложения)
@@ -338,18 +352,24 @@ func header(h map[string]string, name string) string {
 	return ""
 }
 
+// fileJob — файл архива, прошедший проверку пределов
+type fileJob struct {
+	path  string
+	mf    manifestFileRep
+	entry *zip.File
+	size  int64 // распакованный размер из оглавления архива
+}
+
 func (s *Service) storeFiles(ctx context.Context, zr *zip.Reader, mf *manifestRep) ([]*artifactModel.File, error) {
 	entries := make(map[string]*zip.File, len(zr.File))
 	for _, f := range zr.File {
 		entries[f.Name] = f
 	}
 
-	files := make([]*artifactModel.File, 0, len(mf.Files))
-	var mu sync.Mutex
-	var unpacked int64
-
-	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(4)
+	// пределы — по размерам из оглавления архива, до чтения: негодный архив не занимает память.
+	// Настоящий размер с заявленным сверяется при чтении (readEntry).
+	jobs := make([]fileJob, 0, len(mf.Files))
+	var unpacked uint64
 	for path, mfFile := range mf.Files {
 		if !knownTypes[mfFile.Type] || mfFile.Url == "" {
 			continue // indexed_ram_bundle и прочее — шаг 6
@@ -358,36 +378,44 @@ func (s *Service) storeFiles(ctx context.Context, zr *zip.Reader, mf *manifestRe
 		if !ok {
 			return nil, invalid("file %s from manifest is missing in the archive", path)
 		}
-		g.Go(func() error {
-			rc, err := entry.Open()
-			if err != nil {
-				return invalid("file %s: %v", path, err)
-			}
-			data, err := io.ReadAll(io.LimitReader(rc, s.conf.MaxFileBytes+1))
-			_ = rc.Close()
-			if err != nil {
-				return invalid("file %s: %v", path, err)
-			}
-			if int64(len(data)) > s.conf.MaxFileBytes {
-				return invalid("file %s is larger than %d bytes", path, s.conf.MaxFileBytes)
-			}
-			mu.Lock()
-			unpacked += int64(len(data))
-			over := unpacked > s.conf.MaxUnpackedBytes
-			mu.Unlock()
-			if over {
-				return invalid("archive unpacks to more than %d bytes", s.conf.MaxUnpackedBytes)
-			}
+		if entry.UncompressedSize64 > uint64(s.conf.MaxFileBytes) {
+			return nil, invalid("file %s is larger than %d bytes", path, s.conf.MaxFileBytes)
+		}
+		if unpacked += entry.UncompressedSize64; unpacked > uint64(s.conf.MaxUnpackedBytes) {
+			return nil, invalid("archive unpacks to more than %d bytes", s.conf.MaxUnpackedBytes)
+		}
+		jobs = append(jobs, fileJob{path: path, mf: mfFile, entry: entry, size: int64(entry.UncompressedSize64)})
+	}
 
+	files := make([]*artifactModel.File, 0, len(jobs))
+	var mu sync.Mutex
+	var acquireErr error
+
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(4)
+	for _, job := range jobs {
+		// память под файл занимается до его чтения и держится до конца записи в S3.
+		// Файл больше всего предела берёт предел целиком: дожидается остальных и идёт один.
+		weight := min(job.size, s.conf.MaxInFlightBytes)
+		if acquireErr = s.fileSem.Acquire(gCtx, weight); acquireErr != nil {
+			break // сборка отменена или другой файл не прошёл: причину вернёт g.Wait
+		}
+		g.Go(func() error {
+			defer s.fileSem.Release(weight)
+
+			data, err := readEntry(job.entry, job.size)
+			if err != nil {
+				return invalid("file %s: %v", job.path, err)
+			}
 			blob, err := s.artifact.StoreFile(gCtx, data)
 			if err != nil {
 				return fmt.Errorf("artifact.StoreFile: %w", err)
 			}
 			f := &artifactModel.File{
-				Url:       mfFile.Url,
-				Type:      mfFile.Type,
-				DebugId:   artifactService.NormalizeDebugId(header(mfFile.Headers, "debug-id")),
-				Sourcemap: header(mfFile.Headers, "sourcemap"),
+				Url:       job.mf.Url,
+				Type:      job.mf.Type,
+				DebugId:   artifactService.NormalizeDebugId(header(job.mf.Headers, "debug-id")),
+				Sourcemap: header(job.mf.Headers, "sourcemap"),
 				Blob:      blob,
 				Size:      int64(len(data)),
 			}
@@ -400,5 +428,31 @@ func (s *Service) storeFiles(ctx context.Context, zr *zip.Reader, mf *manifestRe
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
+	if acquireErr != nil {
+		return nil, fmt.Errorf("fileSem.Acquire: %w", acquireErr)
+	}
 	return files, nil
+}
+
+// readEntry — файл архива целиком, в буфере ровно под заявленный размер: io.ReadAll растит буфер с
+// перекладыванием и на большом файле занимает вдвое больше. Заявленный размер сверяется с настоящим.
+func readEntry(entry *zip.File, size int64) ([]byte, error) {
+	rc, err := entry.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	data := make([]byte, size)
+	if _, err = io.ReadFull(rc, data); err != nil {
+		return nil, err // файл короче заявленного — io.ErrUnexpectedEOF
+	}
+	// дочитать до конца: файл не длиннее заявленного, и контрольную сумму zip сверяет только на конце
+	var extra [1]byte
+	if n, err := io.ReadFull(rc, extra[:]); n > 0 {
+		return nil, errors.New("size does not match the archive header")
+	} else if !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	return data, nil
 }

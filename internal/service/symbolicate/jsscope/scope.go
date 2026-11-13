@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/dop251/goja/ast"
 	"github.com/dop251/goja/parser"
@@ -31,6 +32,14 @@ const wrapPrefix = "async function _z(){"
 
 // Parse — функции файла, отсортированные по началу
 func Parse(src []byte) ([]Scope, error) {
+	w, err := parseTree(src)
+	if err != nil {
+		return nil, err
+	}
+	return w.scopes, nil
+}
+
+func parseTree(src []byte) (*walker, error) {
 	prepared, ok := demodule(src)
 	if !ok {
 		return nil, errors.New("jsscope: lexer failed")
@@ -41,11 +50,14 @@ func Parse(src []byte) ([]Scope, error) {
 		return nil, err
 	}
 
-	w := &walker{seen: map[uintptr]bool{}, shift: len(wrapPrefix) + 1, names: map[ast.Node]*Name{}, owners: map[ast.Node]*Name{}}
+	w := &walker{seen: map[ast.Node]bool{}, shift: len(wrapPrefix) + 1, names: map[ast.Node]*Name{}, owners: map[ast.Node]*Name{}}
 	w.walk(reflect.ValueOf(prog))
+	if w.tooDeep {
+		return nil, errors.New("jsscope: tree is too deep")
+	}
 
 	sort.Slice(w.scopes, func(i, j int) bool { return w.scopes[i].Start < w.scopes[j].Start })
-	return w.scopes, nil
+	return w, nil
 }
 
 // Innermost — самая внутренняя функция, содержащая позицию off; нет — nil
@@ -61,35 +73,64 @@ func Innermost(scopes []Scope, off int) *Scope {
 }
 
 type walker struct {
-	seen   map[uintptr]bool // узел может встретиться дважды (DeclarationList функции)
-	shift  int              // Idx goja — с 1 и с учётом обёртки
+	seen   map[ast.Node]bool // уже пройденные узлы из revisitable
+	shift  int               // Idx goja — с 1 и с учётом обёртки
 	names  map[ast.Node]*Name
 	owners map[ast.Node]*Name
 	scopes []Scope
+
+	depth    int
+	maxDepth int // для теста: насколько глубоко уходит обход на настоящих файлах
+	tooDeep  bool
 }
+
+// maxWalkDepth — предел вложенности обхода. seen хранит только узлы из revisitable, так что от
+// цикла в дереве (в goja их нет, но дерево чужое и может поменяться с версией) защищает глубина:
+// без неё цикл — бесконечная рекурсия и падение всего процесса, с ней — ошибка разбора файла, и
+// имена функций берутся только из карты. На настоящих сборках глубина — сотни (см. тест).
+const maxWalkDepth = 200_000
 
 var nodeType = reflect.TypeOf((*ast.Node)(nil)).Elem()
 
 func (w *walker) pos(idx int) int { return idx - w.shift }
 
+// name — имя с собственной копией текста: у goja текст имени — срез строки всего разбираемого кода,
+// и без копии каждое имя держало бы в памяти весь файл, пока результат лежит в кэше
+func (w *walker) name(idx int, text string) *Name {
+	return &Name{Pos: w.pos(idx), Text: strings.Clone(text)}
+}
+
 func (w *walker) ident(id *ast.Identifier) *Name {
 	if id == nil {
 		return nil
 	}
-	return &Name{Pos: w.pos(int(id.Idx)), Text: id.Name.String()}
+	return w.name(int(id.Idx), id.Name.String())
 }
 
 // keyName — ключ свойства, метода или поля класса (не вычисляемый)
 func (w *walker) keyName(key ast.Expression) *Name {
 	switch k := key.(type) {
 	case *ast.StringLiteral:
-		return &Name{Pos: w.pos(int(k.Idx)), Text: k.Value.String()}
+		return w.name(int(k.Idx), k.Value.String())
 	case *ast.Identifier:
 		return w.ident(k)
 	case *ast.PrivateIdentifier:
-		return &Name{Pos: w.pos(int(k.Idx)), Text: "#" + k.Name.String()}
+		return w.name(int(k.Idx), "#"+k.Name.String())
 	}
 	return nil
+}
+
+// revisitable — узлы, до которых обход может дойти дважды. В дереве goja это только Binding:
+// var-объявление лежит и в теле функции, и в её DeclarationList (один и тот же указатель) — на
+// нём повторный обход и останавливается. Функции — страховка: дважды в результат функция не
+// попадёт, даже если в goja появится другое общее место. Остальные узлы (их в десятки раз
+// больше) в seen не кладутся.
+func revisitable(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.Binding, *ast.FunctionLiteral, *ast.ArrowFunctionLiteral:
+		return true
+	}
+	return false
 }
 
 func isFunc(n ast.Node) bool {
@@ -127,7 +168,7 @@ func (w *walker) hint(n ast.Node) {
 		case *ast.Identifier:
 			w.names[v.Right] = w.ident(left)
 		case *ast.DotExpression:
-			w.names[v.Right] = &Name{Pos: w.pos(int(left.Identifier.Idx)), Text: left.Identifier.Name.String()}
+			w.names[v.Right] = w.name(int(left.Identifier.Idx), left.Identifier.Name.String())
 		}
 	case *ast.ObjectLiteral:
 		owner := w.owners[v]
@@ -192,18 +233,38 @@ func (w *walker) visit(n ast.Node) {
 
 // walk — обход дерева goja по reflect (своего обходчика в goja нет); узлы — в прямом порядке
 func (w *walker) walk(v reflect.Value) {
+	if w.tooDeep {
+		return
+	}
+	if w.depth >= maxWalkDepth {
+		w.tooDeep = true
+		return
+	}
+	w.depth++
+	w.maxDepth = max(w.maxDepth, w.depth)
+	w.walkValue(v)
+	w.depth--
+}
+
+func (w *walker) walkValue(v reflect.Value) {
 	switch v.Kind() {
 	case reflect.Interface:
 		if !v.IsNil() {
 			w.walk(v.Elem())
 		}
 	case reflect.Pointer:
-		if v.IsNil() || w.seen[v.Pointer()] {
+		if v.IsNil() {
 			return
 		}
-		w.seen[v.Pointer()] = true
 		if v.Type().Implements(nodeType) {
-			w.visit(v.Interface().(ast.Node))
+			n := v.Interface().(ast.Node)
+			if revisitable(n) {
+				if w.seen[n] {
+					return
+				}
+				w.seen[n] = true
+			}
+			w.visit(n)
 		}
 		w.walk(v.Elem())
 	case reflect.Struct:

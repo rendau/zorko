@@ -148,34 +148,65 @@ func (c *Client) ListPrefixes(ctx context.Context, prefix string) ([]string, err
 	return result, nil
 }
 
-// DeletePrefix удаляет все объекты под prefix; возвращает, сколько удалено
+// deletePrefixBuffer — сколько ключей ждёт между листингом и удалением (удаление идёт пачками по 1000)
+const deletePrefixBuffer = 1000
+
+// DeletePrefix удаляет все объекты под prefix; возвращает, сколько удалено.
+// Листинг и удаление идут одновременно через небольшой канал: в памяти — пачка ключей, а не весь
+// список (в папке дня записей — сотни тысяч объектов, ObjectInfo — около 600 байт на каждый).
+// При ошибке листинга или отмене ctx уже прочитанное удаляется, остальное остаётся до следующего вызова.
 func (c *Client) DeletePrefix(ctx context.Context, prefix string) (int, error) {
-	keys := make([]string, 0)
-	for obj := range c.mc.ListObjects(ctx, c.bucket, minio.ListObjectsOptions{Prefix: prefix, Recursive: true}) {
-		if obj.Err != nil {
-			return 0, fmt.Errorf("ListObjects %s: %w", prefix, obj.Err)
+	// свой контекст: останавливает листинг, если удаление закончилось раньше него
+	workCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	objects := make(chan minio.ObjectInfo, deletePrefixBuffer)
+	listed := 0
+	var listErr error
+	listDone := make(chan struct{})
+	go func() {
+		defer close(listDone)
+		defer close(objects) // удаление дочитывает канал и заканчивается
+		// итератор, а не канал ListObjects: у того при отмене остаётся висеть своя горутина
+		opts := minio.ListObjectsOptions{Prefix: prefix, Recursive: true}
+		for obj := range c.mc.ListObjectsIter(workCtx, c.bucket, opts) {
+			if obj.Err != nil {
+				listErr = fmt.Errorf("ListObjects %s: %w", prefix, obj.Err)
+				return
+			}
+			select {
+			case objects <- minio.ObjectInfo{Key: obj.Key}:
+				listed++
+			case <-workCtx.Done():
+				return
+			}
 		}
-		keys = append(keys, obj.Key)
-	}
+	}()
 
-	objects := make(chan minio.ObjectInfo, len(keys))
-	for _, key := range keys {
-		objects <- minio.ObjectInfo{Key: key}
-	}
-	close(objects)
-
-	var firstErr error
+	var removeErr error
 	failed := 0
-	for res := range c.mc.RemoveObjectsWithResult(ctx, c.bucket, objects, minio.RemoveObjectsOptions{}) {
+	for res := range c.mc.RemoveObjectsWithResult(workCtx, c.bucket, objects, minio.RemoveObjectsOptions{}) {
 		if res.Err != nil && !isNotFound(res.Err) {
 			failed++
-			if firstErr == nil {
-				firstErr = fmt.Errorf("RemoveObjects %s: %w", res.ObjectName, res.Err)
+			if removeErr == nil {
+				removeErr = fmt.Errorf("RemoveObjects %s: %w", res.ObjectName, res.Err)
 			}
 		}
 	}
 
-	return len(keys) - failed, firstErr
+	// удаление закончилось: листинг уже закрыл канал либо остановится по отмене
+	cancel()
+	<-listDone
+
+	deleted := max(listed-failed, 0)
+	switch {
+	case listErr != nil:
+		return deleted, listErr
+	case ctx.Err() != nil:
+		// итератор при отмене просто заканчивается, а ошибки удаления — её следствие
+		return deleted, fmt.Errorf("DeletePrefix %s: %w", prefix, ctx.Err())
+	}
+	return deleted, removeErr
 }
 
 func isNotFound(err error) bool {

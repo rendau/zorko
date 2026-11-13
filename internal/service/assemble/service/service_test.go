@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"strings"
 	"sync"
@@ -250,4 +251,145 @@ func TestAssembleValidation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.StateNotFound, res.State)
 	assert.Equal(t, []string{sha([]byte("b"))}, res.MissingChunks)
+}
+
+// zipRaw — архив с одним файлом bad.js, у которого размер и контрольная сумма в оглавлении заданы
+// вручную (и могут не совпадать с содержимым)
+func zipRaw(t *testing.T, content []byte, declaredSize uint64, crc uint32) []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, err := zw.CreateRaw(&zip.FileHeader{
+		Name: "bad.js", Method: zip.Store, CRC32: crc,
+		CompressedSize64: uint64(len(content)), UncompressedSize64: declaredSize,
+	})
+	require.NoError(t, err)
+	_, err = w.Write(content)
+	require.NoError(t, err)
+
+	mf, _ := json.Marshal(map[string]any{"files": map[string]any{"bad.js": map[string]any{"url": "~/bad.js", "type": "source"}}})
+	w, err = zw.Create("manifest.json")
+	require.NoError(t, err)
+	_, _ = w.Write(mf)
+	require.NoError(t, zw.Close())
+	return buf.Bytes()
+}
+
+// размер файла берётся из оглавления архива до чтения — архив, где он не совпадает с настоящим
+// (или не сходится контрольная сумма), не собирается
+func TestAssembleSizeFromHeader(t *testing.T) {
+	content := bytes.Repeat([]byte("x"), 100)
+	sum := crc32.ChecksumIEEE(content)
+
+	cases := map[string]struct {
+		declared uint64
+		crc      uint32
+		state    string
+	}{
+		"honest":          {declared: 100, crc: sum, state: artifactModel.StateOk},
+		"longer than set": {declared: 10, crc: sum, state: artifactModel.StateError},
+		"shorter than":    {declared: 5000, crc: sum, state: artifactModel.StateError},
+		"bad checksum":    {declared: 100, crc: sum + 1, state: artifactModel.StateError},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			fake := newFake()
+			s := New(Config{TmpDir: t.TempDir()}, fake)
+			b := run(t, s, fake, zipRaw(t, content, tc.declared, tc.crc))
+			require.Equal(t, tc.state, b.State, b.Detail)
+			if tc.state == artifactModel.StateError {
+				assert.Contains(t, b.Detail, "file bad.js", b.Detail)
+				assert.Empty(t, fake.files, "негодный файл в хранилище не попал")
+				return
+			}
+			require.Len(t, fake.stored[b.Id], 1)
+			assert.Equal(t, int64(100), fake.stored[b.Id][0].Size)
+			assert.Equal(t, content, fake.files[sha(content)])
+		})
+	}
+}
+
+// inFlightArtifact — считает байты файлов, одновременно отданных на запись
+type inFlightArtifact struct {
+	*fakeArtifact
+	limit int64
+
+	tmu      sync.Mutex
+	cur      int64
+	count    int
+	maxCur   int64
+	maxCount int
+	crowded  bool // сверх предела в работе был не один файл
+}
+
+func (a *inFlightArtifact) StoreFile(ctx context.Context, data []byte) (string, error) {
+	a.tmu.Lock()
+	a.cur += int64(len(data))
+	a.count++
+	a.maxCur, a.maxCount = max(a.maxCur, a.cur), max(a.maxCount, a.count)
+	if a.cur > a.limit && a.count > 1 {
+		a.crowded = true
+	}
+	a.tmu.Unlock()
+
+	time.Sleep(3 * time.Millisecond)
+	defer func() {
+		a.tmu.Lock()
+		a.cur -= int64(len(data))
+		a.count--
+		a.tmu.Unlock()
+	}()
+	return a.fakeArtifact.StoreFile(ctx, data)
+}
+
+func TestAssembleInFlightLimit(t *testing.T) {
+	small := func(n int) []entry {
+		list := make([]entry, 0, n)
+		for i := range n {
+			list = append(list, entry{fmt.Sprintf("s%d.js", i), fmt.Sprintf("~/s%d.js", i), "source", bytes.Repeat([]byte{byte('a' + i)}, 100)})
+		}
+		return list
+	}
+
+	t.Run("sum of files in work is limited", func(t *testing.T) {
+		fake := &inFlightArtifact{fakeArtifact: newFake(), limit: 250}
+		s := New(Config{TmpDir: t.TempDir(), MaxInFlightBytes: 250}, fake)
+		b := run(t, s, fake.fakeArtifact, zipOf(t, small(12), 0))
+		require.Equal(t, artifactModel.StateOk, b.State, b.Detail)
+		assert.Len(t, fake.stored[b.Id], 12)
+		assert.LessOrEqual(t, fake.maxCur, int64(250))
+		assert.Equal(t, 2, fake.maxCount, "по 100 байт под предел 250 — два файла сразу, не один")
+	})
+
+	t.Run("file over the limit goes alone", func(t *testing.T) {
+		fake := &inFlightArtifact{fakeArtifact: newFake(), limit: 250}
+		s := New(Config{TmpDir: t.TempDir(), MaxInFlightBytes: 250}, fake)
+		entries := append(small(6), entry{"big.js", "~/big.js", "source", bytes.Repeat([]byte("B"), 1000)})
+		b := run(t, s, fake.fakeArtifact, zipOf(t, entries, 0))
+		require.Equal(t, artifactModel.StateOk, b.State, b.Detail)
+		assert.Len(t, fake.stored[b.Id], 7, "файл больше предела собран, а не завис")
+		assert.Equal(t, int64(1000), fake.maxCur)
+		assert.False(t, fake.crowded, "файл больше предела был в работе один")
+	})
+
+	t.Run("limit is free after a failed bundle", func(t *testing.T) {
+		fake := &inFlightArtifact{fakeArtifact: newFake(), limit: 100}
+		s := New(Config{TmpDir: t.TempDir(), MaxInFlightBytes: 100, MaxFileBytes: 500}, fake)
+
+		// предел размера проверен до чтения: ни один файл архива не записан
+		entries := append(small(6), entry{"big.js", "~/big.js", "source", bytes.Repeat([]byte("B"), 1000)})
+		b := run(t, s, fake.fakeArtifact, zipOf(t, entries, 0))
+		assert.Equal(t, artifactModel.StateError, b.State)
+		assert.Contains(t, b.Detail, "is larger than")
+		assert.Empty(t, fake.files)
+
+		// файл занял весь предел и не прошёл сверку при чтении
+		content := bytes.Repeat([]byte("x"), 100)
+		b = run(t, s, fake.fakeArtifact, zipRaw(t, content, 100, crc32.ChecksumIEEE(content)+1))
+		assert.Equal(t, artifactModel.StateError, b.State)
+		assert.Contains(t, b.Detail, "checksum")
+
+		// следующая сборка не ждёт вечно
+		b = run(t, s, fake.fakeArtifact, zipOf(t, small(3), 0))
+		require.Equal(t, artifactModel.StateOk, b.State, b.Detail)
+	})
 }

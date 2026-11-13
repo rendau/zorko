@@ -2,9 +2,11 @@ package jsscope
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/dop251/goja/ast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,4 +88,49 @@ func TestInnermostAndNames(t *testing.T) {
 	assert.Equal(t, "p", s.Name.Text, "o.p = function")
 
 	assert.Nil(t, Innermost(scopes, 0), "вне функций")
+}
+
+// var-объявление в дереве goja достижимо дважды (тело функции и её DeclarationList): функция из
+// него попадает в результат один раз, на любой глубине вложенности
+func TestParseVarFunctionOnce(t *testing.T) {
+	src := `function o(){var a=function(){var b=()=>{var c=function(){return 1};return c};return b},d=1;return a}`
+	scopes, err := Parse([]byte(src))
+	require.NoError(t, err)
+	require.Len(t, scopes, 4)
+	for i := 1; i < len(scopes); i++ {
+		assert.Less(t, scopes[i-1].Start, scopes[i].Start, "без повторов")
+	}
+	names := make([]string, 0, len(scopes))
+	for _, s := range scopes {
+		require.NotNil(t, s.Name)
+		names = append(names, s.Name.Text)
+	}
+	assert.Equal(t, []string{"o", "a", "b", "c"}, names)
+}
+
+// Обход не хранит пройденные узлы (кроме revisitable), от цикла в дереве его защищает предел
+// глубины: цикл — это ошибка разбора, а не падение процесса
+func TestWalkDepthLimit(t *testing.T) {
+	type node struct{ Next *node }
+	loop := &node{}
+	loop.Next = loop
+
+	w := &walker{seen: map[ast.Node]bool{}}
+	w.walk(reflect.ValueOf(loop))
+	assert.True(t, w.tooDeep)
+
+	// настоящие сборки до предела не достают и близко
+	for _, name := range []string{"index-CC8DwTDE.js", "page-6WDFjLaN.js"} {
+		w, err := parseTree(readFixture(t, name))
+		require.NoError(t, err, name)
+		assert.Less(t, w.maxDepth, maxWalkDepth/50, name)
+		t.Logf("%s: глубина обхода %d", name, w.maxDepth)
+	}
+
+	// длинная цепочка сложений — самое глубокое, что бывает в сжатом коде: тоже разбирается
+	chain := "var x=a" + strings.Repeat("+a", 10_000) + ";function f(){return x}"
+	w, err := parseTree([]byte(chain))
+	require.NoError(t, err)
+	require.Len(t, w.scopes, 1)
+	t.Logf("цепочка из 10 000 слагаемых: глубина обхода %d", w.maxDepth)
 }
