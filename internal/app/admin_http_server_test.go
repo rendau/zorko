@@ -89,6 +89,21 @@ func TestAdminCacheAndFallback(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "root:", "выход за каталог не работает")
 }
 
+// страницы интерфейса (в том числе страница согласия ADR-020) не встраиваются в чужой сайт
+func TestAdminNoFraming(t *testing.T) {
+	h := newAdminHandler(adminDir(t), AdminConfig{})
+
+	for _, path := range []string{"/", "/index.html", "/oauth/authorize?client_id=x", "/login?redirect=%2Foauth%2Fauthorize"} {
+		w := get(h, path, "")
+		assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"), path)
+		assert.Equal(t, "frame-ancestors 'none'", w.Header().Get("Content-Security-Policy"), path)
+	}
+
+	// файлам сборки запрет не нужен
+	w := get(h, "/_nuxt/entry.abc123.js", "")
+	assert.Empty(t, w.Header().Get("X-Frame-Options"))
+}
+
 func TestAdminConfigJs(t *testing.T) {
 	h := newAdminHandler(adminDir(t), AdminConfig{ApiBaseUrl: `https://api.zorko.test/"x`, Auth: AdminAuthConfig{Mode: "local"}})
 	w := get(h, "/config.js", "")

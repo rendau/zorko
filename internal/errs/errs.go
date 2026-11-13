@@ -52,6 +52,10 @@ const (
 	// запись сессий
 	ReplayDisabled = Err("replay_disabled") // S3 не настроен: запись не включить
 	ReplayNotFound = Err("replay_not_found")
+
+	// вход MCP-клиентов по OAuth (ADR-020): страница согласия
+	OAuthNotEnabled     = Err("oauth_not_enabled")     // MCP на этой установке выключен
+	OAuthInvalidRequest = Err("oauth_invalid_request") // запрос авторизации клиента не годится
 )
 
 type ErrFull struct {

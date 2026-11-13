@@ -433,7 +433,9 @@
     "replay_disabled": "Session replay is unavailable: S3 storage is not configured on the server",
     "replay_not_found": "Replay not found",
     "auth_external": "Signed in via the identity provider: name, username and password are managed there",
-    "usr_disabled": "The zorko account is disabled"
+    "usr_disabled": "The zorko account is disabled",
+    "oauth_not_enabled": "AI agent connections are turned off on this installation",
+    "oauth_invalid_request": "The app's connection request is not valid — start connecting again"
   },
   "sourcemap": {
     "notResolved": "not resolved",
@@ -533,5 +535,34 @@
       "skipInactive": "Skip pauses",
       "keys": "Drag the slider; red dots are errors. Space — play/pause, arrows — ±5 s (click the player first)."
     }
+  },
+  "oauth": {
+    "title": "Connect an app",
+    "checking": "Checking the request…",
+    "returning": "Returning to the app ({host})…",
+    "lead": "{client} wants to connect to zorko as {user}.",
+    "scopeRead": "Read your projects: issues, events with stack traces, tags and session replays.",
+    "scopeNoWrite": "It cannot change anything: projects, keys and people are managed only in the interface.",
+    "note": "After you answer you will return to {host}. Allow only if you started connecting this app yourself. You can disconnect it at any time: profile menu → “AI agents”.",
+    "allow": "Allow",
+    "deny": "Deny",
+    "invalid": "The connection request is not valid",
+    "toApp": "Go to zorko"
+  },
+  "mcp": {
+    "title": "AI agents",
+    "description": "Connect Claude to zorko — it will be able to read your errors and help investigate them.",
+    "address": "MCP server address",
+    "howTo": "Claude: Settings → Connectors → add a custom connector and paste the address. Claude Code: claude mcp add --transport http zorko and this address. A zorko page will open — press “Allow” there.",
+    "connected": "Connected apps",
+    "loading": "Loading…",
+    "empty": "Nothing is connected yet.",
+    "connectedAt": "connected",
+    "lastUsed": "last used",
+    "neverUsed": "not used yet",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect “{name}”?",
+    "disconnectHint": "The app loses access at once. You can connect it again at any time.",
+    "disconnected": "“{name}” disconnected"
   }
 }

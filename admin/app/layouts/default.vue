@@ -7,6 +7,8 @@ const org = useOrg()
 const { t } = useI18n()
 const localeSwitcher = useLocaleSwitcher()
 const passwordOpen = ref(false)
+const mcpOpen = ref(false)
+const mcpEnabled = !!useMcpUrl()
 
 onMounted(() => {
   void org.load()
@@ -28,6 +30,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   [
     { label: t('layout.language'), icon: 'i-lucide-languages', children: languageItems.value },
     { label: isExternalAuth() ? t('profile.title') : t('layout.profile'), icon: isExternalAuth() ? 'i-lucide-user' : 'i-lucide-key-round', onSelect: () => { passwordOpen.value = true } },
+    ...(mcpEnabled ? [{ label: t('mcp.title'), icon: 'i-lucide-bot', onSelect: () => { mcpOpen.value = true } }] : []),
     { label: t('layout.logout'), icon: 'i-lucide-log-out', onSelect: () => auth.logout() },
   ],
 ])
@@ -107,5 +110,6 @@ const navItems = computed<NavigationMenuItem[][]>(() => [
     <slot />
 
     <ProfileModal v-model:open="passwordOpen" />
+    <McpModal v-if="mcpEnabled" v-model:open="mcpOpen" />
   </UDashboardGroup>
 </template>

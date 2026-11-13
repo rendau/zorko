@@ -17,6 +17,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/samber/lo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -32,6 +33,8 @@ import (
 	domainEventServiceP "github.com/rendau/zorko/internal/domain/event/service"
 	domainIssueRepoDbP "github.com/rendau/zorko/internal/domain/issue/repo/db"
 	domainIssueServiceP "github.com/rendau/zorko/internal/domain/issue/service"
+	domainOauthRepoDbP "github.com/rendau/zorko/internal/domain/oauth/repo/db"
+	domainOauthServiceP "github.com/rendau/zorko/internal/domain/oauth/service"
 	domainOrgRepoDbP "github.com/rendau/zorko/internal/domain/org/repo/db"
 	domainOrgServiceP "github.com/rendau/zorko/internal/domain/org/service"
 	domainOrgTokenRepoDbP "github.com/rendau/zorko/internal/domain/org_token/repo/db"
@@ -51,6 +54,7 @@ import (
 	domainUsrServiceP "github.com/rendau/zorko/internal/domain/usr/service"
 	handlerGrpcP "github.com/rendau/zorko/internal/handler/grpc"
 	handlerIngestP "github.com/rendau/zorko/internal/handler/ingest"
+	handlerMcpP "github.com/rendau/zorko/internal/handler/mcp"
 	handlerReplaysegP "github.com/rendau/zorko/internal/handler/replayseg"
 	handlerSentryapiP "github.com/rendau/zorko/internal/handler/sentryapi"
 	"github.com/rendau/zorko/internal/infra/chmigrate"
@@ -64,6 +68,7 @@ import (
 	serviceKeycacheServiceP "github.com/rendau/zorko/internal/service/keycache/service"
 	serviceLoginlimitServiceP "github.com/rendau/zorko/internal/service/loginlimit/service"
 	serviceNormalizeServiceP "github.com/rendau/zorko/internal/service/normalize/service"
+	serviceOauthcleanupServiceP "github.com/rendau/zorko/internal/service/oauthcleanup/service"
 	serviceProcessorServiceP "github.com/rendau/zorko/internal/service/processor/service"
 	serviceProjectlabelServiceP "github.com/rendau/zorko/internal/service/projectlabel/service"
 	serviceQueueServiceP "github.com/rendau/zorko/internal/service/queue/service"
@@ -78,6 +83,7 @@ import (
 	usecaseArtifactP "github.com/rendau/zorko/internal/usecase/artifact"
 	usecaseIngestP "github.com/rendau/zorko/internal/usecase/ingest"
 	usecaseIssueP "github.com/rendau/zorko/internal/usecase/issue"
+	usecaseOauthP "github.com/rendau/zorko/internal/usecase/oauth"
 	usecaseOrgP "github.com/rendau/zorko/internal/usecase/org"
 	usecaseOrgTokenP "github.com/rendau/zorko/internal/usecase/org_token"
 	usecaseProjectP "github.com/rendau/zorko/internal/usecase/project"
@@ -106,11 +112,13 @@ type App struct {
 	replayProc   *serviceReplayprocServiceP.Service
 	replayGc     *serviceReplaygcServiceP.Service
 	chDiskGc     *serviceChdiskgcServiceP.Service
+	oauthCleanup *serviceOauthcleanupServiceP.Service
 
 	grpcServer       *GrpcServer
 	httpServer       *http.Server
 	ingestHttpServer *http.Server
 	adminHttpServer  *http.Server
+	mcpHttpServer    *http.Server
 	systemHttpServer *http.Server
 
 	ctx       context.Context
@@ -219,6 +227,28 @@ func (a *App) Init() {
 
 	// access (какие проекты видит вошедший человек)
 	accessService := serviceAccessServiceP.New(sessionService, usrService)
+
+	// oauth (вход MCP-клиентов, ADR-020): страница согласия — в интерфейсе (gRPC), остальные
+	// OAuth-адреса — на MCP-порту; без MCP_ENABLED согласие отвечает oauth_not_enabled
+	oauthSecret := lo.CoalesceOrEmpty(config.Conf.McpOAuthSecret, config.Conf.JwtSecret)
+	if config.Conf.McpEnabled {
+		if config.Conf.McpPublicUrl == "" || config.Conf.McpOAuthAdminUrl == "" {
+			errCheck(errors.New("MCP_ENABLED requires MCP_PUBLIC_URL and MCP_OAUTH_ADMIN_URL"), "mcp init")
+		}
+		if oauthSecret == "" {
+			errCheck(errors.New("MCP_ENABLED requires MCP_OAUTH_SECRET (or JWT_SECRET)"), "mcp init")
+		}
+	}
+	oauthService := domainOauthServiceP.New(domainOauthRepoDbP.New(a.pgpool))
+	oauthUsecase := usecaseOauthP.New(usecaseOauthP.Config{
+		Enabled:      config.Conf.McpEnabled,
+		Issuer:       config.Conf.McpPublicUrl,
+		AdminURL:     config.Conf.McpOAuthAdminUrl,
+		RedirectUris: config.Conf.McpOAuthRedirectUris,
+		AccessTTL:    config.Conf.McpOAuthAccessTTL,
+		RefreshTTL:   config.Conf.McpOAuthRefreshTTL,
+	}, oauthService, domainOauthServiceP.NewClientCodec(oauthSecret), usrService, sessionService)
+	oauthHandler := handlerGrpcP.NewOAuth(oauthUsecase)
 
 	usrUsecase := usecaseUsrP.New(usrService, sessionService, serviceLoginlimitServiceP.New(5, time.Minute), projectService,
 		authMode != constant.AuthModeLocal)
@@ -436,6 +466,7 @@ func (a *App) Init() {
 			zorko_v1.RegisterEventServiceServer(server, eventHandler)
 			zorko_v1.RegisterTagServiceServer(server, tagHandler)
 			zorko_v1.RegisterReplayServiceServer(server, replayHandler)
+			zorko_v1.RegisterOAuthServiceServer(server, oauthHandler)
 		})
 	}
 
@@ -463,6 +494,7 @@ func (a *App) Init() {
 				zorko_v1.RegisterEventServiceHandler,
 				zorko_v1.RegisterTagServiceHandler,
 				zorko_v1.RegisterReplayServiceHandler,
+				zorko_v1.RegisterOAuthServiceHandler,
 			}
 			for _, h := range handlers {
 				err = h(context.Background(), mux, conn)
@@ -516,7 +548,20 @@ func (a *App) Init() {
 		a.adminHttpServer = AdminHttpServerCreate(config.Conf.AdminPort, config.Conf.AdminDir, AdminConfig{
 			ApiBaseUrl: config.Conf.AdminApiBaseUrl,
 			Auth:       authCfg,
+			McpUrl:     lo.Ternary(config.Conf.McpEnabled, config.Conf.McpPublicUrl, ""),
 		})
+	}
+
+	// mcp http server (AI-агенты, ADR-020): только чтение, вход — OAuth
+	if config.Conf.McpEnabled {
+		mcpHandler := handlerMcpP.New(handlerMcpP.Config{
+			AdminURL: config.Conf.McpOAuthAdminUrl,
+			Version:  constant.Version,
+		}, sessionService, oauthUsecase, orgUsecase, projectUsecase, issueUsecase, replayUsecase, mcpToolObserver)
+		a.mcpHttpServer = McpHttpServerCreate(config.Conf.McpPort, mcpHandler.HTTPHandler())
+
+		// чистка истёкших токенов и брошенных подключений
+		a.oauthCleanup = serviceOauthcleanupServiceP.New(oauthService)
 	}
 
 	// system http server (healthcheck, docs, metrics)
@@ -592,6 +637,11 @@ func (a *App) Start() {
 		a.chDiskGc.Start(a.ctx)
 	}
 
+	// oauth cleanup
+	if a.oauthCleanup != nil {
+		a.oauthCleanup.Start(a.ctx)
+	}
+
 	// ingest http server
 	if a.ingestHttpServer != nil {
 		go func() {
@@ -623,6 +673,17 @@ func (a *App) Start() {
 			}
 		}()
 		slog.Info("admin-http-server started " + a.adminHttpServer.Addr)
+	}
+
+	// mcp http server
+	if a.mcpHttpServer != nil {
+		go func() {
+			err := a.mcpHttpServer.ListenAndServe()
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCheck(err, "mcp-http-server stopped")
+			}
+		}()
+		slog.Info("mcp-http-server started " + a.mcpHttpServer.Addr)
 	}
 
 	// system http server
@@ -680,6 +741,17 @@ func (a *App) Stop() {
 
 		if err := a.adminHttpServer.Shutdown(ctx); err != nil {
 			slog.Error("admin-http-server shutdown error", "error", err)
+			a.exitCode = 1
+		}
+	}
+
+	// mcp http server
+	if a.mcpHttpServer != nil {
+		ctx, ctxCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer ctxCancel()
+
+		if err := a.mcpHttpServer.Shutdown(ctx); err != nil {
+			slog.Error("mcp-http-server shutdown error", "error", err)
 			a.exitCode = 1
 		}
 	}
@@ -753,6 +825,11 @@ func (a *App) WaitJobs() {
 	// ch disk gc
 	if a.chDiskGc != nil {
 		a.chDiskGc.Wait()
+	}
+
+	// oauth cleanup
+	if a.oauthCleanup != nil {
+		a.oauthCleanup.Wait()
 	}
 }
 

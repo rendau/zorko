@@ -59,6 +59,8 @@ export default defineNuxtConfig({
       authProxyLoginUrl: '',
       authProxyRefreshUrl: '',
       authProxyLogoutUrl: '',
+      // адрес MCP-сервера в деве (в проде — /config.js от сервера, ADR-020)
+      mcpUrl: '',
     },
   },
 

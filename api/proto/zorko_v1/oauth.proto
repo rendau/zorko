@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package zorko_v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "/zorko_v1";
+
+// OAuthService — страница согласия для входа MCP-клиентов (приложения Claude, Claude Code) во
+// встроенный MCP-сервер и список подключённых клиентов вошедшего человека (ADR-020)
+service OAuthService {
+  // DescribeAuthorization проверяет запрос авторизации клиента и описывает его для страницы согласия
+  rpc DescribeAuthorization(OAuthAuthorizeReq) returns (OAuthAuthorizeInfoRep) {
+    option (google.api.http) = {
+      post: "/oauth/authorize/describe"
+      body: "*"
+    };
+  }
+
+  // Authorize записывает решение человека и возвращает, куда вернуть браузер клиенту
+  rpc Authorize(OAuthAuthorizeReq) returns (OAuthAuthorizeRep) {
+    option (google.api.http) = {
+      post: "/oauth/authorize"
+      body: "*"
+    };
+  }
+
+  // GrantList — подключённые клиенты вошедшего человека
+  rpc GrantList(google.protobuf.Empty) returns (OAuthGrantListRep) {
+    option (google.api.http) = {
+      get: "/oauth/grant"
+    };
+  }
+
+  // GrantDelete — отключить клиента: его токены перестают работать сразу
+  rpc GrantDelete(OAuthGrantDeleteReq) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/oauth/grant/{id}"
+    };
+  }
+}
+
+// OAuthAuthorizeReq — параметры адреса страницы согласия как есть
+message OAuthAuthorizeReq {
+  string response_type = 1;
+  string client_id = 2;
+  string redirect_uri = 3;
+  string state = 4;
+  string code_challenge = 5;
+  string code_challenge_method = 6;
+  string scope = 7;
+  string resource = 8;
+  // только Authorize: разрешить или отказать
+  bool approve = 9;
+}
+
+message OAuthAuthorizeInfoRep {
+  string client_name = 1;
+  string redirect_uri = 2;
+  string redirect_host = 3;
+}
+
+message OAuthAuthorizeRep {
+  string redirect_url = 1;
+}
+
+message OAuthGrantMain {
+  string id = 1;
+  string client_name = 2;
+  string redirect_host = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp connected_at = 5;
+  // нет — клиент ещё не обращался
+  google.protobuf.Timestamp last_used_at = 6;
+}
+
+message OAuthGrantListRep {
+  repeated OAuthGrantMain results = 1;
+}
+
+message OAuthGrantDeleteReq {
+  string id = 1;
+}

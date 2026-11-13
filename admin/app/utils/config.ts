@@ -19,6 +19,8 @@ export interface AuthConfig {
 interface AppConfig {
   apiBaseUrl?: string
   auth?: AuthConfig
+  // адрес MCP-сервера для AI-агентов (ADR-020); пусто — MCP на этой установке выключен
+  mcpUrl?: string
 }
 
 declare global {
@@ -32,6 +34,11 @@ export function useApiBaseUrl(): string {
   if (fromWindow)
     return fromWindow
   return String(useRuntimeConfig().public.apiBaseUrl ?? '')
+}
+
+// useMcpUrl — адрес MCP-сервера; пусто — выключен (пункт «AI-агенты» в меню не показывается)
+export function useMcpUrl(): string {
+  return window.__APP_CONFIG__?.mcpUrl || String(useRuntimeConfig().public.mcpUrl ?? '')
 }
 
 export function useAuthConfig(): AuthConfig {

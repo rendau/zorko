@@ -43,6 +43,21 @@ var Conf = struct {
 	AuthProxyRefreshUrl string `env:"AUTH_PROXY_REFRESH_URL"`
 	AuthProxyLogoutUrl  string `env:"AUTH_PROXY_LOGOUT_URL"`
 
+	// встроенный MCP-сервер для AI-агентов (ADR-020): свой порт, вход — OAuth через страницу
+	// согласия интерфейса. McpPublicUrl — адрес MCP-сервера, как его видят клиенты;
+	// McpOAuthAdminUrl — адрес интерфейса (страница согласия и ссылки в ответах)
+	McpEnabled       bool   `env:"MCP_ENABLED" envDefault:"false"`
+	McpPort          string `env:"MCP_PORT" envDefault:"5060"`
+	McpPublicUrl     string `env:"MCP_PUBLIC_URL"`
+	McpOAuthAdminUrl string `env:"MCP_OAUTH_ADMIN_URL"`
+	// ключ подписи выданных клиентам id; пусто — берётся JWT_SECRET (при AUTH_MODE=oidc/proxy его
+	// нет — тогда MCP_OAUTH_SECRET обязателен). Смена ключа отключает клиентов: им подключаться заново
+	McpOAuthSecret string `env:"MCP_OAUTH_SECRET"`
+	// куда можно вернуть код входа: адрес без пути разрешает любой путь, localhost — любой порт
+	McpOAuthRedirectUris []string      `env:"MCP_OAUTH_REDIRECT_URIS" envSeparator:"," envDefault:"https://claude.ai/api/mcp/auth_callback,https://claude.com/api/mcp/auth_callback,http://localhost,http://127.0.0.1"`
+	McpOAuthAccessTTL    time.Duration `env:"MCP_OAUTH_ACCESS_TTL" envDefault:"1h"`
+	McpOAuthRefreshTTL   time.Duration `env:"MCP_OAUTH_REFRESH_TTL" envDefault:"720h"`
+
 	PgDsn string `env:"PG_DSN"`
 	ChDsn string `env:"CH_DSN"`
 

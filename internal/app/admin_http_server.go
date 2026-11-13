@@ -36,6 +36,8 @@ var precompressedEncodings = []precompressedEncoding{
 type AdminConfig struct {
 	ApiBaseUrl string          `json:"apiBaseUrl"`
 	Auth       AdminAuthConfig `json:"auth"`
+	// McpUrl — адрес MCP-сервера для AI-агентов (ADR-020); пусто — MCP выключен
+	McpUrl string `json:"mcpUrl,omitempty"`
 }
 
 // AdminAuthConfig — способ входа (AUTH_MODE, ADR-019) и что интерфейсу нужно для него знать
@@ -93,6 +95,13 @@ func newAdminHandler(dir string, cfg AdminConfig) http.Handler {
 			if stat, err := os.Stat(fullPath); err == nil && !stat.IsDir() {
 				filePath, cacheControl = fullPath, adminAssetCacheControl
 			}
+		}
+
+		if filePath == indexPath {
+			// страницы интерфейса не показываются внутри чужого сайта: на странице согласия для
+			// AI-агентов (ADR-020) кнопку «Разрешить» нельзя подставить под чужой клик
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
 		}
 
 		w.Header().Set("Cache-Control", cacheControl)

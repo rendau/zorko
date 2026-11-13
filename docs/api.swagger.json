@@ -15,6 +15,9 @@
       "name": "IssueService"
     },
     {
+      "name": "OAuthService"
+    },
+    {
       "name": "OrgService"
     },
     {
@@ -639,6 +642,127 @@
         ],
         "tags": [
           "ReplayService"
+        ]
+      }
+    },
+    "/oauth/authorize": {
+      "post": {
+        "summary": "Authorize записывает решение человека и возвращает, куда вернуть браузер клиенту",
+        "operationId": "OAuthService_Authorize",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OAuthAuthorizeRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OAuthAuthorizeReq"
+            }
+          }
+        ],
+        "tags": [
+          "OAuthService"
+        ]
+      }
+    },
+    "/oauth/authorize/describe": {
+      "post": {
+        "summary": "DescribeAuthorization проверяет запрос авторизации клиента и описывает его для страницы согласия",
+        "operationId": "OAuthService_DescribeAuthorization",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OAuthAuthorizeInfoRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OAuthAuthorizeReq"
+            }
+          }
+        ],
+        "tags": [
+          "OAuthService"
+        ]
+      }
+    },
+    "/oauth/grant": {
+      "get": {
+        "summary": "GrantList — подключённые клиенты вошедшего человека",
+        "operationId": "OAuthService_GrantList",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/zorko_v1OAuthGrantListRep"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "OAuthService"
+        ]
+      }
+    },
+    "/oauth/grant/{id}": {
+      "delete": {
+        "summary": "GrantDelete — отключить клиента: его токены перестают работать сразу",
+        "operationId": "OAuthService_GrantDelete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "OAuthService"
         ]
       }
     },
@@ -2445,6 +2569,101 @@
             "type": "object",
             "$ref": "#/definitions/zorko_v1TagDist"
           }
+        }
+      }
+    },
+    "zorko_v1OAuthAuthorizeInfoRep": {
+      "type": "object",
+      "properties": {
+        "client_name": {
+          "type": "string"
+        },
+        "redirect_uri": {
+          "type": "string"
+        },
+        "redirect_host": {
+          "type": "string"
+        }
+      }
+    },
+    "zorko_v1OAuthAuthorizeRep": {
+      "type": "object",
+      "properties": {
+        "redirect_url": {
+          "type": "string"
+        }
+      }
+    },
+    "zorko_v1OAuthAuthorizeReq": {
+      "type": "object",
+      "properties": {
+        "response_type": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "redirect_uri": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "code_challenge": {
+          "type": "string"
+        },
+        "code_challenge_method": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "resource": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean",
+          "title": "только Authorize: разрешить или отказать"
+        }
+      },
+      "title": "OAuthAuthorizeReq — параметры адреса страницы согласия как есть"
+    },
+    "zorko_v1OAuthGrantListRep": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/zorko_v1OAuthGrantMain"
+          }
+        }
+      }
+    },
+    "zorko_v1OAuthGrantMain": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "client_name": {
+          "type": "string"
+        },
+        "redirect_host": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "connected_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_used_at": {
+          "type": "string",
+          "format": "date-time",
+          "title": "нет — клиент ещё не обращался"
         }
       }
     },

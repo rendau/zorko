@@ -36,6 +36,12 @@
   - `grpc/` — gRPC handlers.
   - `grpc/dto/` — преобразование protobuf ↔ domain models; общие хелперы — `dto/common.go`
     (`DecodeListParams`, `JsonObjToGrpcStruct`, `GrpcStructToJsonObj`).
+  - `mcp/` — встроенный MCP-сервер для AI-агентов (ADR-020): свой порт (`MCP_ENABLED` /
+    `MCP_PORT`), только чтение, без сессий на сервере; вход — OAuth: адреса OAuth — на MCP-порту,
+    страница согласия — `/oauth/authorize` интерфейса (`OAuthService` в gRPC). Логика входа —
+    `internal/usecase/oauth`, хранение — `internal/domain/oauth`, чистка —
+    `internal/service/oauthcleanup`. Новый инструмент — в `mcp/tools.go` через `addTool` и только
+    поверх usecase; инструментов записи нет. Подробности — README, «AI-агенты (MCP)».
   - могут быть и другие транспортные каналы.
 - `internal/usecase/` — usecase-слой (валидация, оркестрация сервисов и доменных сервисов).
 - `internal/domain/` — доменная модель, сервисы и репозитории.
@@ -268,11 +274,22 @@ S3_ACCESS_KEY=zorko
 S3_SECRET_KEY=zorko-secret
 ```
 
-Порты сервиса на стенде: gRPC `5050`, HTTP-шлюз `9090`, приём `8000`, интерфейс `8001`, системный `3003`.
+Порты сервиса на стенде: gRPC `5050`, HTTP-шлюз `9090`, приём `8000`, интерфейс `8001`, системный `3003`,
+MCP `5060`.
 Для интерфейса на стенде: `make build-admin`, затем `ADMIN_API_BASE_URL=http://localhost:9090 HTTP_CORS=true`
 (интерфейс и API на разных портах). Тестовые люди стенда: `admin` / `admin-pass-1` (админ),
 `oleg` / `oleg-pass-1` (участник) — создаются вручную на `/setup` и в «Людях», в базу не зашиты.
 Интеграционные тесты (`-tags integration`) ходят на эти адреса.
+
+MCP на стенде (ADR-020): добавить к запуску `MCP_ENABLED=true MCP_PORT=5060
+MCP_PUBLIC_URL=http://localhost:5060 MCP_OAUTH_ADMIN_URL=http://localhost:8001` (при `AUTH_MODE=local`
+ключ подписи клиентов — `JWT_SECRET`). Проверка входа без настоящего клиента: `POST :5060/register`
+с адресом возврата `http://localhost:<порт>/callback` и `token_endpoint_auth_method: none` →
+открыть в браузере `http://localhost:8001/oauth/authorize?response_type=code&client_id=…&redirect_uri=…
+&code_challenge=…&code_challenge_method=S256&resource=http://localhost:5060` → «Разрешить» → код из
+адреса возврата обменять на `POST :5060/token` → запросы JSON-RPC на `:5060/` с
+`Authorization: Bearer zko_…` и `Accept: application/json, text/event-stream`. Подключения видны в
+интерфейсе: меню профиля → «AI-агенты».
 
 Проверка внешнего входа (ADR-019) — на стенде ruto (`../ruto`, CLAUDE.md, «Тестовый стенд»):
 Keycloak `ruto-test-kc` (`:8180`, realm `corp`, люди `alice` / `alice-pass` с realm-ролью `auditor`,
